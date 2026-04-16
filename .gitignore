@@ -1,19 +1,38 @@
+# Local .terraform directories
 .terraform/
+
+# Terraform lock file
 .terraform.lock.hcl
+
+# .tfstate files
 *.tfstate
 *.tfstate.*
+
+# Crash log files
 crash.log
 crash.*.log
+
+# Exclude all .tfvars files, which are likely to contain sensitive data.
+*.tfvars
+*.tfvars.json
+
+# Ignore override files as they are usually used to override resources locally.
 override.tf
 override.tf.json
 *_override.tf
 *_override.tf.json
+
+# Ignore transient lock info files created by terraform apply.
 .terraform.tfstate.lock.info
+
+# Ignore plan output files.
+*tfplan*
+
+# Ignore CLI configuration files.
 .terraformrc
 terraform.rc
-*.tfvars
-*.tfvars.json
-*tfplan*
+
+# Local environment-specific files.
 infra/backend.hcl
 infra/terraform.tfvars
 .env
