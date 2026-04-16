@@ -1,0 +1,12 @@
+{
+  "DocumentName": "AWS-RunShellScript",
+  "InstanceIds": ["i-0dfcb2dc2fb7b80f0"],
+  "Parameters": {
+    "commands": [
+      "sudo docker ps -a --format \"table {{.Names}}\t{{.Status}}\"",
+      "sudo docker inspect n8n --format \"{{.Config.User}}\"",
+      "sudo docker run --rm -v /opt/n8n/data:/home/node/.n8n docker.n8n.io/n8nio/n8n:latest sh -lc \"id && ls -ld /home/node/.n8n && touch /home/node/.n8n/write-test && ls -l /home/node/.n8n/write-test\"",
+      "sudo docker logs --tail 30 n8n"
+    ]
+  }
+}

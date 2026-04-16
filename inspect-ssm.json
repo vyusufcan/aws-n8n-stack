@@ -1,0 +1,10 @@
+{
+  "DocumentName": "AWS-RunShellScript",
+  "InstanceIds": ["i-0dfcb2dc2fb7b80f0"],
+  "Parameters": {
+    "commands": [
+      "sudo ls -la /opt/n8n/data",
+      "sudo find /opt/n8n/data -maxdepth 2 -printf \"%M %u:%g %p\\n\" | head -100"
+    ]
+  }
+}

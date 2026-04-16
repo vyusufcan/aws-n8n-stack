@@ -1,0 +1,58 @@
+#!/bin/bash
+set -euxo pipefail
+
+export DEBIAN_FRONTEND=noninteractive
+apt-get update
+apt-get install -y docker.io curl
+systemctl enable --now docker
+usermod -aG docker ubuntu
+
+mkdir -p /usr/local/lib/docker/cli-plugins
+curl -SL "https://github.com/docker/compose/releases/download/v2.29.7/docker-compose-linux-x86_64" -o /usr/local/lib/docker/cli-plugins/docker-compose
+chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+
+mkdir -p /opt/n8n/{data,ollama}
+chown -R 1000:1000 /opt/n8n/data
+
+cat > /opt/n8n/docker-compose.yml <<'EOF'
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    restart: unless-stopped
+    volumes:
+      - /opt/n8n/ollama:/root/.ollama
+    ports:
+      - "127.0.0.1:11434:11434"
+
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:latest
+    container_name: n8n
+    restart: unless-stopped
+    depends_on:
+      - ollama
+    ports:
+      - "${n8n_host_port}:5678"
+    environment:
+      - N8N_HOST=${domain_name}
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=https
+      - WEBHOOK_URL=https://${domain_name}/
+      - N8N_EDITOR_BASE_URL=https://${domain_name}/
+      - GENERIC_TIMEZONE=${n8n_timezone}
+      - TZ=${n8n_timezone}
+      - N8N_SECURE_COOKIE=true
+      - N8N_ENCRYPTION_KEY=${n8n_encryption_key}
+      - OLLAMA_HOST=http://ollama:11434
+    volumes:
+      - /opt/n8n/data:/home/node/.n8n
+EOF
+
+cd /opt/n8n
+docker compose up -d
+
+until docker exec ollama ollama list >/dev/null 2>&1; do
+  sleep 5
+done
+
+docker exec ollama ollama pull ${ollama_model}
