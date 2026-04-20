@@ -31,6 +31,8 @@ services:
     restart: unless-stopped
     depends_on:
       - ollama
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "${n8n_host_port}:5678"
     environment:
@@ -43,7 +45,7 @@ services:
       - TZ=${n8n_timezone}
       - N8N_SECURE_COOKIE=true
       - N8N_ENCRYPTION_KEY=${n8n_encryption_key}
-      - OLLAMA_HOST=http://ollama:11434
+      - OLLAMA_HOST=${ollama_base_url}
     volumes:
       - /opt/n8n/data:/home/node/.n8n
 EOF

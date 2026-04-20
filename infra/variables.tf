@@ -74,3 +74,9 @@ variable "ollama_model" {
   type        = string
   default     = "llama3.2"
 }
+
+variable "ollama_base_url" {
+  description = "Base URL n8n should use for Ollama. Use http://ollama:11434 for the bundled container or http://host.docker.internal:11434 for a host-run Ollama."
+  type        = string
+  default     = "http://ollama:11434"
+}

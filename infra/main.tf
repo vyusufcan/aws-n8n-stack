@@ -181,6 +181,7 @@ resource "aws_instance" "app" {
     n8n_host_port      = var.n8n_host_port
     n8n_encryption_key = var.n8n_encryption_key
     n8n_timezone       = var.n8n_timezone
+    ollama_base_url    = var.ollama_base_url
     ollama_model       = var.ollama_model
   })
 
