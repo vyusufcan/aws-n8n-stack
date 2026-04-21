@@ -9,6 +9,15 @@ data "aws_subnets" "default" {
   }
 }
 
+data "aws_subnet" "selected" {
+  id = data.aws_subnets.default.ids[0]
+}
+
+data "aws_route53_zone" "selected" {
+  name         = var.hosted_zone_name
+  private_zone = false
+}
+
 data "aws_ami" "ubuntu" {
   most_recent = true
   owners      = ["099720109477"]
@@ -43,7 +52,7 @@ resource "aws_security_group" "alb" {
     from_port   = 443
     to_port     = 443
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+    cidr_blocks = [local.ssh_ingress_cidr]
   }
 
   egress {
@@ -170,7 +179,7 @@ resource "aws_lb_listener" "https" {
 resource "aws_instance" "app" {
   ami                         = data.aws_ami.ubuntu.id
   instance_type               = var.instance_type
-  subnet_id                   = data.aws_subnets.default.ids[0]
+  subnet_id                   = data.aws_subnet.selected.id
   associate_public_ip_address = true
   vpc_security_group_ids      = [aws_security_group.instance.id]
   iam_instance_profile        = aws_iam_instance_profile.ec2.name
@@ -178,11 +187,11 @@ resource "aws_instance" "app" {
 
   user_data = templatefile("${path.module}/user_data.sh.tftpl", {
     domain_name        = var.domain_name
+    data_device_name   = var.data_device_name
+    data_mount_path    = var.data_mount_path
     n8n_host_port      = var.n8n_host_port
     n8n_encryption_key = var.n8n_encryption_key
     n8n_timezone       = var.n8n_timezone
-    ollama_base_url    = var.ollama_base_url
-    ollama_model       = var.ollama_model
   })
 
   root_block_device {
@@ -197,8 +206,29 @@ resource "aws_instance" "app" {
   }
 }
 
+resource "aws_volume_attachment" "n8n_data" {
+  device_name = var.data_device_name
+  volume_id   = var.data_volume_id
+  instance_id = aws_instance.app.id
+
+  stop_instance_before_detaching = true
+}
+
 resource "aws_lb_target_group_attachment" "app" {
   target_group_arn = aws_lb_target_group.n8n.arn
   target_id        = aws_instance.app.id
   port             = var.n8n_host_port
+}
+
+resource "aws_route53_record" "n8n" {
+  allow_overwrite = true
+  zone_id         = data.aws_route53_zone.selected.zone_id
+  name            = var.domain_name
+  type            = "A"
+
+  alias {
+    name                   = aws_lb.this.dns_name
+    zone_id                = aws_lb.this.zone_id
+    evaluate_target_health = true
+  }
 }

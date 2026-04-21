@@ -1,0 +1,3 @@
+bucket = "replace-with-bootstrap-output"
+key    = "n8n-ollama/storage-prod.tfstate"
+region = "eu-west-1"

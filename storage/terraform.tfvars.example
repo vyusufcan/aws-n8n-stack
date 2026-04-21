@@ -1,0 +1,4 @@
+aws_profile      = "n8n"
+project_name     = "n8n-ollama"
+environment      = "prod"
+data_volume_size = 50

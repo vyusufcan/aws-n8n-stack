@@ -1,5 +1,5 @@
 variable "aws_region" {
-  description = "AWS region for the Terraform state bucket."
+  description = "AWS region for all resources."
   type        = string
   default     = "eu-west-1"
 }
@@ -17,7 +17,13 @@ variable "project_name" {
 }
 
 variable "environment" {
-  description = "Environment label."
+  description = "Environment name."
   type        = string
   default     = "prod"
+}
+
+variable "data_volume_size" {
+  description = "Persistent EBS volume size in GB for n8n data."
+  type        = number
+  default     = 50
 }

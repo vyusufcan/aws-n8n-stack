@@ -4,6 +4,12 @@ variable "aws_region" {
   default     = "eu-west-1"
 }
 
+variable "aws_profile" {
+  description = "AWS shared credentials profile used by Terraform."
+  type        = string
+  default     = "n8n"
+}
+
 variable "project_name" {
   description = "Project name prefix."
   type        = string
@@ -19,13 +25,13 @@ variable "environment" {
 variable "domain_name" {
   description = "Full domain name for n8n."
   type        = string
-  default     = "n8n.vyusufcan.cloud"
+  default     = "n8n.example.com"
 }
 
 variable "hosted_zone_name" {
   description = "Existing Route53 hosted zone name."
   type        = string
-  default     = "vyusufcan.cloud"
+  default     = "example.com"
 }
 
 variable "certificate_arn" {
@@ -36,19 +42,36 @@ variable "certificate_arn" {
 variable "instance_type" {
   description = "EC2 instance type."
   type        = string
-  default     = "t2.large"
+  default     = "t2.micro"
 }
 
 variable "key_pair_name" {
   description = "Existing AWS EC2 key pair name for SSH access."
   type        = string
-  default     = "vyusufcan"
+  default     = "n8n-admin"
 }
 
 variable "root_volume_size" {
   description = "Root EBS volume size in GB."
   type        = number
-  default     = 80
+  default     = 25
+}
+
+variable "data_device_name" {
+  description = "Device name used to attach the persistent n8n data volume."
+  type        = string
+  default     = "/dev/sdf"
+}
+
+variable "data_volume_id" {
+  description = "Persistent EBS volume ID used for n8n data."
+  type        = string
+}
+
+variable "data_mount_path" {
+  description = "Host path where the persistent n8n EBS volume is mounted."
+  type        = string
+  default     = "/srv/n8n"
 }
 
 variable "n8n_encryption_key" {
@@ -67,16 +90,4 @@ variable "n8n_host_port" {
   description = "Port exposed by n8n on the EC2 instance."
   type        = number
   default     = 5678
-}
-
-variable "ollama_model" {
-  description = "Model to pull on first boot."
-  type        = string
-  default     = "llama3.2"
-}
-
-variable "ollama_base_url" {
-  description = "Base URL n8n should use for Ollama. Use http://ollama:11434 for the bundled container or http://host.docker.internal:11434 for a host-run Ollama."
-  type        = string
-  default     = "http://ollama:11434"
 }

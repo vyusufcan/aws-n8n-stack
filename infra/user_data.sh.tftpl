@@ -11,28 +11,46 @@ mkdir -p /usr/local/lib/docker/cli-plugins
 curl -SL "https://github.com/docker/compose/releases/download/v2.29.7/docker-compose-linux-x86_64" -o /usr/local/lib/docker/cli-plugins/docker-compose
 chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
 
-mkdir -p /opt/n8n/{data,ollama}
-chown -R 1000:1000 /opt/n8n/data
+DEVICE=""
+DATA_MOUNT_PATH="${data_mount_path}"
+
+for _ in $(seq 1 60); do
+  for candidate in "${data_device_name}" "/dev/xvdf" "/dev/nvme1n1"; do
+    if [ -e "$candidate" ]; then
+      resolved="$(readlink -f "$candidate")"
+      if [ -b "$resolved" ]; then
+        DEVICE="$resolved"
+        break 2
+      fi
+    fi
+  done
+
+  sleep 2
+done
+
+if [ -z "$DEVICE" ]; then
+  echo "Could not find attached EBS volume" >&2
+  lsblk >&2 || true
+  exit 1
+fi
+
+if ! blkid "$DEVICE" >/dev/null 2>&1; then
+  mkfs.ext4 -F "$DEVICE"
+fi
+
+mkdir -p "$DATA_MOUNT_PATH"
+UUID="$(blkid -s UUID -o value "$DEVICE")"
+grep -q "$${UUID}" /etc/fstab || echo "UUID=$${UUID} $${DATA_MOUNT_PATH} ext4 defaults,nofail 0 2" >> /etc/fstab
+mountpoint -q "$DATA_MOUNT_PATH" || mount "$DATA_MOUNT_PATH"
+chown -R 1000:1000 "$DATA_MOUNT_PATH"
+mkdir -p /opt/n8n
 
 cat > /opt/n8n/docker-compose.yml <<'EOF'
 services:
-  ollama:
-    image: ollama/ollama:latest
-    container_name: ollama
-    restart: unless-stopped
-    volumes:
-      - /opt/n8n/ollama:/root/.ollama
-    ports:
-      - "127.0.0.1:11434:11434"
-
   n8n:
     image: docker.n8n.io/n8nio/n8n:latest
     container_name: n8n
     restart: unless-stopped
-    depends_on:
-      - ollama
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     ports:
       - "${n8n_host_port}:5678"
     environment:
@@ -45,16 +63,9 @@ services:
       - TZ=${n8n_timezone}
       - N8N_SECURE_COOKIE=true
       - N8N_ENCRYPTION_KEY=${n8n_encryption_key}
-      - OLLAMA_HOST=${ollama_base_url}
     volumes:
-      - /opt/n8n/data:/home/node/.n8n
+      - ${data_mount_path}:/home/node/.n8n
 EOF
 
 cd /opt/n8n
 docker compose up -d
-
-until docker exec ollama ollama list >/dev/null 2>&1; do
-  sleep 5
-done
-
-docker exec ollama ollama pull ${ollama_model}

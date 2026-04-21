@@ -17,3 +17,8 @@ output "ec2_public_ip" {
   description = "Public IP of the EC2 instance."
   value       = aws_instance.app.public_ip
 }
+
+output "n8n_data_volume_id" {
+  description = "Persistent EBS volume ID used for n8n data."
+  value       = var.data_volume_id
+}
