@@ -38,21 +38,22 @@ data "http" "my_ip" {
 }
 
 locals {
-  name_prefix      = "${var.project_name}-${var.environment}"
-  ssh_ingress_cidr = "${trimspace(data.http.my_ip.response_body)}/32"
+  name_prefix          = "${var.project_name}-${var.environment}"
+  ssh_ingress_cidr     = "${trimspace(data.http.my_ip.response_body)}/32"
+  kubeconfig_parameter = "/${local.name_prefix}/k3s/kubeconfig"
 }
 
 resource "aws_security_group" "alb" {
   name        = "${local.name_prefix}-alb-sg"
-  description = "Allow HTTPS traffic to the ALB"
+  description = "Allow HTTPS traffic to the ALB from anywhere on IPv4"
   vpc_id      = data.aws_vpc.default.id
 
   ingress {
-    description = "HTTPS"
+    description = "HTTPS from anywhere on IPv4"
     from_port   = 443
     to_port     = 443
     protocol    = "tcp"
-    cidr_blocks = [local.ssh_ingress_cidr]
+    cidr_blocks = ["0.0.0.0/0"]
   }
 
   egress {
@@ -100,6 +101,39 @@ resource "aws_security_group" "instance" {
   }
 }
 
+resource "aws_security_group" "k8s_instance" {
+  name        = "${local.name_prefix}-k8s-sg"
+  description = "Allow your IP to SSH and the n8n instance to reach k3s"
+  vpc_id      = data.aws_vpc.default.id
+
+  ingress {
+    description = "SSH from current public IP"
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = [local.ssh_ingress_cidr]
+  }
+
+  ingress {
+    description     = "k3s API from n8n instance"
+    from_port       = 6443
+    to_port         = 6443
+    protocol        = "tcp"
+    security_groups = [aws_security_group.instance.id]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "${local.name_prefix}-k8s-sg"
+  }
+}
+
 resource "aws_iam_role" "ec2" {
   name = "${local.name_prefix}-ec2-role"
 
@@ -112,6 +146,25 @@ resource "aws_iam_role" "ec2" {
         Principal = {
           Service = "ec2.amazonaws.com"
         }
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy" "kubeconfig_parameter" {
+  name = "${local.name_prefix}-k3s-kubeconfig"
+  role = aws_iam_role.ec2.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "ssm:PutParameter",
+          "ssm:GetParameter"
+        ]
+        Resource = "arn:aws:ssm:${var.aws_region}:*:parameter${local.kubeconfig_parameter}"
       }
     ]
   })
@@ -186,13 +239,19 @@ resource "aws_instance" "app" {
   key_name                    = var.key_pair_name
 
   user_data = templatefile("${path.module}/user_data.sh.tftpl", {
-    domain_name        = var.domain_name
-    data_device_name   = var.data_device_name
-    data_mount_path    = var.data_mount_path
-    n8n_host_port      = var.n8n_host_port
-    n8n_encryption_key = var.n8n_encryption_key
-    n8n_timezone       = var.n8n_timezone
+    data_device_name             = var.data_device_name
+    data_mount_path              = var.data_mount_path
+    domain_name                  = var.domain_name
+    k3s_kubeconfig_parameter     = local.kubeconfig_parameter
+    k3s_kubeconfig_relative_path = var.k3s_kubeconfig_relative_path
+    n8n_encryption_key           = var.n8n_encryption_key
+    n8n_host_port                = var.n8n_host_port
+    n8n_timezone                 = var.n8n_timezone
   })
+
+  depends_on = [
+    aws_instance.k8s
+  ]
 
   root_block_device {
     volume_size           = var.root_volume_size
@@ -203,6 +262,31 @@ resource "aws_instance" "app" {
 
   tags = {
     Name = "${local.name_prefix}-app"
+  }
+}
+
+resource "aws_instance" "k8s" {
+  ami                         = data.aws_ami.ubuntu.id
+  instance_type               = var.k8s_instance_type
+  subnet_id                   = data.aws_subnet.selected.id
+  associate_public_ip_address = true
+  vpc_security_group_ids      = [aws_security_group.k8s_instance.id]
+  iam_instance_profile        = aws_iam_instance_profile.ec2.name
+  key_name                    = var.key_pair_name
+  user_data = templatefile("${path.module}/user_data_k8s.sh.tftpl", {
+    k3s_kubeconfig_parameter = local.kubeconfig_parameter
+    rbac_yaml_content        = file("${path.module}/RBAC.yaml")
+  })
+
+  root_block_device {
+    volume_size           = var.root_volume_size
+    volume_type           = "gp3"
+    delete_on_termination = true
+    encrypted             = true
+  }
+
+  tags = {
+    Name = "${local.name_prefix}-k8s"
   }
 }
 

@@ -3,13 +3,17 @@ set -euxo pipefail
 
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
-apt-get install -y docker.io curl
+apt-get install -y docker.io curl unzip
 systemctl enable --now docker
 usermod -aG docker ubuntu
 
-mkdir -p /usr/local/lib/docker/cli-plugins
-curl -SL "https://github.com/docker/compose/releases/download/v2.29.7/docker-compose-linux-x86_64" -o /usr/local/lib/docker/cli-plugins/docker-compose
-chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+unzip awscliv2.zip
+./aws/install
+rm -rf aws awscliv2.zip
+
+TOKEN="$(curl -fsSL -X PUT 'http://169.254.169.254/latest/api/token' -H 'X-aws-ec2-metadata-token-ttl-seconds: 21600')"
+AWS_REGION="$(curl -fsSL -H "X-aws-ec2-metadata-token: $TOKEN" 'http://169.254.169.254/latest/meta-data/placement/region')"
 
 DEVICE=""
 DATA_MOUNT_PATH="${data_mount_path}"
@@ -42,13 +46,42 @@ mkdir -p "$DATA_MOUNT_PATH"
 UUID="$(blkid -s UUID -o value "$DEVICE")"
 grep -q "$${UUID}" /etc/fstab || echo "UUID=$${UUID} $${DATA_MOUNT_PATH} ext4 defaults,nofail 0 2" >> /etc/fstab
 mountpoint -q "$DATA_MOUNT_PATH" || mount "$DATA_MOUNT_PATH"
+# Ensure an existing ext4 filesystem expands to fill a resized EBS volume.
+resize2fs "$DEVICE"
 chown -R 1000:1000 "$DATA_MOUNT_PATH"
+
+KUBECONFIG_TARGET="$DATA_MOUNT_PATH/${k3s_kubeconfig_relative_path}"
+mkdir -p "$(dirname "$KUBECONFIG_TARGET")"
+
+for _ in $(seq 1 90); do
+  if aws ssm get-parameter \
+    --region "$AWS_REGION" \
+    --name "${k3s_kubeconfig_parameter}" \
+    --query 'Parameter.Value' \
+    --output text > "$KUBECONFIG_TARGET"; then
+    chmod 600 "$KUBECONFIG_TARGET"
+    chown 1000:1000 "$KUBECONFIG_TARGET"
+    break
+  fi
+
+  sleep 10
+done
+
+if [ ! -s "$KUBECONFIG_TARGET" ]; then
+  echo "Could not retrieve k3s kubeconfig from SSM Parameter Store" >&2
+  exit 1
+fi
+
+mkdir -p /usr/local/lib/docker/cli-plugins
+curl -SL "https://github.com/docker/compose/releases/download/v2.29.7/docker-compose-linux-x86_64" -o /usr/local/lib/docker/cli-plugins/docker-compose
+chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+
 mkdir -p /opt/n8n
 
 cat > /opt/n8n/docker-compose.yml <<'EOF'
 services:
   n8n:
-    image: docker.n8n.io/n8nio/n8n:1.123.34
+    image: vyusufcan/n8n:2.17.7
     container_name: n8n
     restart: unless-stopped
     ports:
@@ -63,6 +96,7 @@ services:
       - TZ=${n8n_timezone}
       - N8N_SECURE_COOKIE=true
       - N8N_ENCRYPTION_KEY=${n8n_encryption_key}
+      - NODES_EXCLUDE=[]
     volumes:
       - ${data_mount_path}:/home/node/.n8n
 EOF

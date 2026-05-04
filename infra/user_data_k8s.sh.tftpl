@@ -1,0 +1,86 @@
+#!/bin/bash
+set -euxo pipefail
+
+export DEBIAN_FRONTEND=noninteractive
+apt-get update
+apt-get install -y curl ca-certificates apt-transport-https gnupg jq unzip
+
+curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+unzip awscliv2.zip
+./aws/install
+rm -rf aws awscliv2.zip
+
+install -d -m 0755 /etc/apt/keyrings
+curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.30/deb/Release.key \
+  | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.30/deb/ /' \
+  > /etc/apt/sources.list.d/kubernetes.list
+apt-get update
+apt-get install -y kubectl
+
+TOKEN="$(curl -fsSL -X PUT 'http://169.254.169.254/latest/api/token' -H 'X-aws-ec2-metadata-token-ttl-seconds: 21600')"
+PRIVATE_IP="$(curl -fsSL -H "X-aws-ec2-metadata-token: $TOKEN" 'http://169.254.169.254/latest/meta-data/local-ipv4')"
+AWS_REGION="$(curl -fsSL -H "X-aws-ec2-metadata-token: $TOKEN" 'http://169.254.169.254/latest/meta-data/placement/region')"
+curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="server --write-kubeconfig-mode 644 --tls-san $PRIVATE_IP" sh -
+systemctl enable --now k3s
+sed -i "s#server: https://127.0.0.1:6443#server: https://$PRIVATE_IP:6443#" /etc/rancher/k3s/k3s.yaml
+mkdir -p /root/.kube
+cp /etc/rancher/k3s/k3s.yaml /root/.kube/config
+export KUBECONFIG=/root/.kube/config
+
+cat > /root/n8n-rbac.yaml <<'EOF_RBAC'
+${rbac_yaml_content}
+EOF_RBAC
+kubectl apply -f /root/n8n-rbac.yaml
+
+cat > /root/n8n-ai-agent-token-secret.yaml <<'EOF_SECRET'
+apiVersion: v1
+kind: Secret
+metadata:
+  name: n8n-ai-agent-token
+  namespace: kube-system
+  annotations:
+    kubernetes.io/service-account.name: n8n-ai-agent
+type: kubernetes.io/service-account-token
+EOF_SECRET
+kubectl apply -f /root/n8n-ai-agent-token-secret.yaml
+
+for _ in $(seq 1 60); do
+  SA_TOKEN="$(kubectl -n kube-system get secret n8n-ai-agent-token -o jsonpath='{.data.token}' || true)"
+  CA_CRT="$(kubectl -n kube-system get secret n8n-ai-agent-token -o jsonpath='{.data.ca\.crt}' || true)"
+  if [ -n "$SA_TOKEN" ] && [ -n "$CA_CRT" ]; then
+    break
+  fi
+
+  sleep 2
+done
+
+if [ -z "$${SA_TOKEN:-}" ] || [ -z "$${CA_CRT:-}" ]; then
+  echo "Could not obtain n8n service account token secret data" >&2
+  exit 1
+fi
+
+SA_TOKEN_DECODED="$(printf '%s' "$SA_TOKEN" | base64 -d | tr -d '\n')"
+K3S_SERVER="https://$PRIVATE_IP:6443"
+N8N_KUBECONFIG_PATH="/root/n8n-kubeconfig.yaml"
+
+kubectl config --kubeconfig="$N8N_KUBECONFIG_PATH" set-cluster n8n-k3s \
+  --server="$K3S_SERVER" \
+  --certificate-authority=/var/lib/rancher/k3s/server/tls/server-ca.crt \
+  --embed-certs=true
+kubectl config --kubeconfig="$N8N_KUBECONFIG_PATH" set-credentials n8n-ai-agent \
+  --token="$SA_TOKEN_DECODED"
+kubectl config --kubeconfig="$N8N_KUBECONFIG_PATH" set-context n8n-ai-agent@k3s \
+  --cluster=n8n-k3s \
+  --user=n8n-ai-agent \
+  --namespace=kube-system
+kubectl config --kubeconfig="$N8N_KUBECONFIG_PATH" use-context n8n-ai-agent@k3s
+
+aws ssm put-parameter \
+  --region "$AWS_REGION" \
+  --name "${k3s_kubeconfig_parameter}" \
+  --type "String" \
+  --overwrite \
+  --value file://"$N8N_KUBECONFIG_PATH"
+
+curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash

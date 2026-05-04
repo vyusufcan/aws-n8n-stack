@@ -45,6 +45,12 @@ variable "instance_type" {
   default     = "t2.micro"
 }
 
+variable "k8s_instance_type" {
+  description = "EC2 instance type for the Kubernetes VM."
+  type        = string
+  default     = "t3.medium"
+}
+
 variable "key_pair_name" {
   description = "Existing AWS EC2 key pair name for SSH access."
   type        = string
@@ -72,6 +78,12 @@ variable "data_mount_path" {
   description = "Host path where the persistent n8n EBS volume is mounted."
   type        = string
   default     = "/srv/n8n"
+}
+
+variable "k3s_kubeconfig_relative_path" {
+  description = "Relative path under the n8n data mount where the k3s kubeconfig is copied."
+  type        = string
+  default     = "k3s/kubeconfig.yaml"
 }
 
 variable "n8n_encryption_key" {
