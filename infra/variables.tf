@@ -34,6 +34,12 @@ variable "hosted_zone_name" {
   default     = "example.com"
 }
 
+variable "chat_domain_name" {
+  description = "Full domain name for the chat UI."
+  type        = string
+  default     = "chat.example.com"
+}
+
 variable "certificate_arn" {
   description = "ACM certificate ARN for the load balancer HTTPS listener."
   type        = string
@@ -43,12 +49,6 @@ variable "instance_type" {
   description = "EC2 instance type."
   type        = string
   default     = "t2.micro"
-}
-
-variable "k8s_instance_type" {
-  description = "EC2 instance type for the Kubernetes VM."
-  type        = string
-  default     = "t3.medium"
 }
 
 variable "key_pair_name" {
@@ -102,4 +102,10 @@ variable "n8n_host_port" {
   description = "Port exposed by n8n on the EC2 instance."
   type        = number
   default     = 5678
+}
+
+variable "chat_host_port" {
+  description = "Port exposed by nginx on the EC2 instance for the chat UI."
+  type        = number
+  default     = 80
 }

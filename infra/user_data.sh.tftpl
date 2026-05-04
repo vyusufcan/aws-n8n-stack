@@ -3,7 +3,7 @@ set -euxo pipefail
 
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
-apt-get install -y docker.io curl unzip
+apt-get install -y docker.io curl nginx unzip
 systemctl enable --now docker
 usermod -aG docker ubuntu
 
@@ -52,17 +52,37 @@ chown -R 1000:1000 "$DATA_MOUNT_PATH"
 
 KUBECONFIG_TARGET="$DATA_MOUNT_PATH/${k3s_kubeconfig_relative_path}"
 mkdir -p "$(dirname "$KUBECONFIG_TARGET")"
+rm -f "$KUBECONFIG_TARGET"
 
 for _ in $(seq 1 90); do
+  READY_IP="$(aws ssm get-parameter \
+    --region "$AWS_REGION" \
+    --name "${k3s_ready_parameter}" \
+    --query 'Parameter.Value' \
+    --output text 2>/dev/null || true)"
+
+  if [ -z "$READY_IP" ]; then
+    sleep 10
+    continue
+  fi
+
+  KUBECONFIG_TMP="$(mktemp)"
   if aws ssm get-parameter \
     --region "$AWS_REGION" \
     --name "${k3s_kubeconfig_parameter}" \
     --query 'Parameter.Value' \
-    --output text > "$KUBECONFIG_TARGET"; then
+    --output text > "$KUBECONFIG_TMP" && grep -Fq "server: https://$READY_IP:6443" "$KUBECONFIG_TMP"; then
+    if ! timeout 5 bash -c "</dev/tcp/$READY_IP/6443" >/dev/null 2>&1; then
+      rm -f "$KUBECONFIG_TMP"
+      sleep 10
+      continue
+    fi
+    mv "$KUBECONFIG_TMP" "$KUBECONFIG_TARGET"
     chmod 600 "$KUBECONFIG_TARGET"
     chown 1000:1000 "$KUBECONFIG_TARGET"
     break
   fi
+  rm -f "$KUBECONFIG_TMP"
 
   sleep 10
 done
@@ -77,6 +97,16 @@ curl -SL "https://github.com/docker/compose/releases/download/v2.29.7/docker-com
 chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
 
 mkdir -p /opt/n8n
+mkdir -p /var/www/k8s-agent
+
+printf '%s' '${chat_html_content_base64_gzip}' | base64 -d | gunzip > /var/www/k8s-agent/index.html
+
+printf '%s' '${nginx_config_content_base64}' | base64 -d > /etc/nginx/sites-available/chat
+
+rm -f /etc/nginx/sites-enabled/default
+ln -sf /etc/nginx/sites-available/chat /etc/nginx/sites-enabled/chat
+systemctl enable nginx
+systemctl restart nginx
 
 cat > /opt/n8n/docker-compose.yml <<'EOF'
 services:

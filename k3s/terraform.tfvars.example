@@ -1,0 +1,6 @@
+aws_profile       = "n8n"
+project_name      = "n8n-ollama"
+environment       = "prod"
+key_pair_name     = "n8n-admin"
+k3s_instance_type = "t3.medium"
+root_volume_size  = 25

@@ -1,0 +1,788 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>K8s AI Agent</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0d0f12;
+    --surface: #151820;
+    --surface2: #1c2030;
+    --border: rgba(255,255,255,0.07);
+    --border2: rgba(255,255,255,0.12);
+    --text: #e8eaf0;
+    --text-muted: #6b7280;
+    --text-dim: #9ca3af;
+    --accent: #00d4aa;
+    --accent-dim: rgba(0, 212, 170, 0.12);
+    --accent-border: rgba(0, 212, 170, 0.3);
+    --user-bg: #1e2d3d;
+    --user-border: rgba(59, 130, 246, 0.2);
+    --error: #ef4444;
+    --warning: #f59e0b;
+    --success: #10b981;
+    --radius: 12px;
+    --radius-sm: 8px;
+    --font: 'Space Grotesk', sans-serif;
+    --mono: 'JetBrains Mono', monospace;
+  }
+
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    font-size: 14px;
+    line-height: 1.6;
+    overflow: hidden;
+  }
+
+  .app {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+  }
+
+  /* Header */
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+    height: 56px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    flex-shrink: 0;
+  }
+
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .logo {
+    width: 30px;
+    height: 30px;
+    background: var(--accent-dim);
+    border: 1px solid var(--accent-border);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .logo svg {
+    width: 16px;
+    height: 16px;
+    stroke: var(--accent);
+  }
+
+  .header-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+    letter-spacing: -0.2px;
+  }
+
+  .header-subtitle {
+    font-size: 11px;
+    color: var(--text-muted);
+    font-family: var(--mono);
+  }
+
+  .status-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    background: rgba(16, 185, 129, 0.1);
+    border: 1px solid rgba(16, 185, 129, 0.2);
+    border-radius: 20px;
+    font-size: 11px;
+    color: var(--success);
+    font-family: var(--mono);
+  }
+
+  .status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--success);
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  /* Config bar */
+  .config-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 20px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+
+  .config-bar label {
+    font-size: 11px;
+    color: var(--text-muted);
+    font-family: var(--mono);
+    white-space: nowrap;
+  }
+
+  .config-bar input {
+    flex: 1;
+    background: var(--bg);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius-sm);
+    padding: 5px 10px;
+    font-size: 12px;
+    font-family: var(--mono);
+    color: var(--text);
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  .config-bar input:focus {
+    border-color: var(--accent-border);
+  }
+
+  .config-bar input::placeholder {
+    color: var(--text-muted);
+  }
+
+  /* Messages */
+  .messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    scroll-behavior: smooth;
+  }
+
+  .messages::-webkit-scrollbar { width: 4px; }
+  .messages::-webkit-scrollbar-track { background: transparent; }
+  .messages::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 4px; }
+
+  /* Message bubbles */
+  .message {
+    display: flex;
+    gap: 10px;
+    animation: fadeIn 0.2s ease;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .message.user {
+    flex-direction: row-reverse;
+  }
+
+  .avatar {
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 600;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+
+  .avatar.agent {
+    background: var(--accent-dim);
+    border: 1px solid var(--accent-border);
+    color: var(--accent);
+  }
+
+  .avatar.user {
+    background: rgba(59, 130, 246, 0.15);
+    border: 1px solid rgba(59, 130, 246, 0.25);
+    color: #60a5fa;
+  }
+
+  .bubble {
+    max-width: 78%;
+    padding: 10px 14px;
+    border-radius: var(--radius);
+    font-size: 13.5px;
+    line-height: 1.65;
+    position: relative;
+  }
+
+  .message.agent .bubble {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px var(--radius) var(--radius) var(--radius);
+  }
+
+  .message.user .bubble {
+    background: var(--user-bg);
+    border: 1px solid var(--user-border);
+    border-radius: var(--radius) 4px var(--radius) var(--radius);
+    color: #bfdbfe;
+  }
+
+  /* Markdown styles inside bubble */
+  .bubble p { margin-bottom: 8px; }
+  .bubble p:last-child { margin-bottom: 0; }
+
+  .bubble table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    font-family: var(--mono);
+    margin: 8px 0;
+  }
+
+  .bubble th {
+    background: rgba(0, 212, 170, 0.08);
+    color: var(--accent);
+    padding: 6px 10px;
+    text-align: left;
+    border: 1px solid var(--border2);
+    font-weight: 500;
+    font-size: 11px;
+    white-space: nowrap;
+  }
+
+  .bubble td {
+    padding: 5px 10px;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    font-size: 11.5px;
+  }
+
+  .bubble tr:hover td { background: rgba(255,255,255,0.02); }
+
+  .bubble code {
+    font-family: var(--mono);
+    font-size: 12px;
+    background: rgba(0,0,0,0.3);
+    padding: 1px 5px;
+    border-radius: 4px;
+    color: var(--accent);
+  }
+
+  .bubble pre {
+    background: rgba(0,0,0,0.4);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius-sm);
+    padding: 10px 12px;
+    overflow-x: auto;
+    margin: 8px 0;
+  }
+
+  .bubble pre code {
+    background: none;
+    padding: 0;
+    font-size: 12px;
+    color: #a5f3d4;
+  }
+
+  .bubble strong { color: var(--text); font-weight: 500; }
+
+  .bubble h2 {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+    margin: 12px 0 6px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .bubble h3 {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--accent);
+    margin: 8px 0 4px;
+    font-family: var(--mono);
+  }
+
+  .bubble ul, .bubble ol {
+    padding-left: 16px;
+    margin: 4px 0;
+  }
+
+  .bubble li { margin: 2px 0; }
+
+  .bubble hr {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 10px 0;
+  }
+
+  /* Timestamp */
+  .ts {
+    font-size: 10px;
+    color: var(--text-muted);
+    font-family: var(--mono);
+    margin-top: 4px;
+    padding: 0 4px;
+  }
+
+  .message.user .ts { text-align: right; }
+
+  /* Typing indicator */
+  .typing {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+  }
+
+  .typing-dots {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px var(--radius) var(--radius) var(--radius);
+    padding: 12px 16px;
+    display: flex;
+    gap: 4px;
+    align-items: center;
+  }
+
+  .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    animation: bounce 1.2s infinite;
+  }
+
+  .dot:nth-child(2) { animation-delay: 0.2s; }
+  .dot:nth-child(3) { animation-delay: 0.4s; }
+
+  @keyframes bounce {
+    0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+    30% { transform: translateY(-5px); opacity: 1; }
+  }
+
+  /* Input area */
+  .input-area {
+    padding: 12px 20px 16px;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+
+  .input-row {
+    display: flex;
+    gap: 8px;
+    align-items: flex-end;
+    background: var(--bg);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius);
+    padding: 8px 8px 8px 14px;
+    transition: border-color 0.2s;
+  }
+
+  .input-row:focus-within {
+    border-color: var(--accent-border);
+  }
+
+  #userInput {
+    flex: 1;
+    background: none;
+    border: none;
+    outline: none;
+    color: var(--text);
+    font-family: var(--font);
+    font-size: 13.5px;
+    resize: none;
+    max-height: 120px;
+    min-height: 24px;
+    line-height: 1.5;
+    padding: 2px 0;
+  }
+
+  #userInput::placeholder { color: var(--text-muted); }
+
+  .send-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: var(--radius-sm);
+    background: var(--accent);
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: opacity 0.2s, transform 0.1s;
+  }
+
+  .send-btn:hover { opacity: 0.85; }
+  .send-btn:active { transform: scale(0.95); }
+  .send-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+  .send-btn svg {
+    width: 15px;
+    height: 15px;
+    stroke: #000;
+    fill: none;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .hint {
+    font-size: 10px;
+    color: var(--text-muted);
+    font-family: var(--mono);
+    margin-top: 6px;
+    padding: 0 2px;
+  }
+
+  /* Quick prompts */
+  .quick-prompts {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-bottom: 10px;
+  }
+
+  .quick-btn {
+    padding: 4px 10px;
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    border-radius: 20px;
+    font-size: 11px;
+    color: var(--text-dim);
+    font-family: var(--mono);
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+
+  .quick-btn:hover {
+    background: var(--accent-dim);
+    border-color: var(--accent-border);
+    color: var(--accent);
+  }
+
+  /* Welcome screen */
+  .welcome {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    padding: 40px;
+    text-align: center;
+  }
+
+  .welcome-icon {
+    width: 56px;
+    height: 56px;
+    background: var(--accent-dim);
+    border: 1px solid var(--accent-border);
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .welcome-icon svg {
+    width: 28px;
+    height: 28px;
+    stroke: var(--accent);
+  }
+
+  .welcome h2 {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .welcome p {
+    font-size: 13px;
+    color: var(--text-muted);
+    max-width: 340px;
+    line-height: 1.6;
+  }
+
+  .welcome-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+    margin-top: 8px;
+  }
+
+  .welcome-chip {
+    padding: 8px 14px;
+    background: var(--surface);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius-sm);
+    font-size: 12px;
+    color: var(--text-dim);
+    font-family: var(--mono);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .welcome-chip:hover {
+    background: var(--accent-dim);
+    border-color: var(--accent-border);
+    color: var(--accent);
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <!-- Header -->
+  <div class="header">
+    <div class="header-left">
+      <div class="logo">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+          <path d="M2 17l10 5 10-5"/>
+          <path d="M2 12l10 5 10-5"/>
+        </svg>
+      </div>
+      <div>
+        <div class="header-title">K8s AI Agent</div>
+        <div class="header-subtitle">n8n · kubectl · SRE</div>
+      </div>
+    </div>
+    <div class="status-badge">
+      <div class="status-dot"></div>
+      connected
+    </div>
+  </div>
+
+  <!-- Config bar -->
+  <div class="config-bar">
+    <label>WEBHOOK</label>
+    <input type="text" id="webhookUrl" placeholder="http://localhost:5678/webhook/prometheus-alert" />
+  </div>
+
+  <!-- Messages -->
+  <div class="messages" id="messages">
+    <div class="welcome" id="welcome">
+      <div class="welcome-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/>
+          <path d="M12 8v4l3 3"/>
+        </svg>
+      </div>
+      <h2>Kubernetes SRE Agent</h2>
+      <p>Ask me anything about your cluster. I'll run kubectl commands and analyze the results for you.</p>
+      <div class="welcome-chips">
+        <div class="welcome-chip" onclick="sendQuick('list all pods and present as table')">list all pods</div>
+        <div class="welcome-chip" onclick="sendQuick('check node status')">check nodes</div>
+        <div class="welcome-chip" onclick="sendQuick('show all deployments')">deployments</div>
+        <div class="welcome-chip" onclick="sendQuick('check cluster events')">cluster events</div>
+        <div class="welcome-chip" onclick="sendQuick('show resource usage with kubectl top')">resource usage</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Input area -->
+  <div class="input-area">
+    <div class="quick-prompts" id="quickPrompts" style="display:none;">
+      <div class="quick-btn" onclick="sendQuick('list all pods and present as table')">list pods</div>
+      <div class="quick-btn" onclick="sendQuick('check node status')">nodes</div>
+      <div class="quick-btn" onclick="sendQuick('show all deployments')">deployments</div>
+      <div class="quick-btn" onclick="sendQuick('check cluster events')">events</div>
+      <div class="quick-btn" onclick="sendQuick('show resource usage with kubectl top')">top</div>
+    </div>
+    <div class="input-row">
+      <textarea id="userInput" rows="1" placeholder="Ask about your cluster..."></textarea>
+      <button class="send-btn" id="sendBtn" onclick="sendMessage()">
+        <svg viewBox="0 0 24 24">
+          <line x1="22" y1="2" x2="11" y2="13"/>
+          <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+        </svg>
+      </button>
+    </div>
+    <div class="hint">Enter to send &nbsp;·&nbsp; Shift+Enter for new line</div>
+  </div>
+</div>
+
+<script>
+const messagesEl = document.getElementById('messages');
+const inputEl = document.getElementById('userInput');
+const sendBtn = document.getElementById('sendBtn');
+const welcomeEl = document.getElementById('welcome');
+const quickPromptsEl = document.getElementById('quickPrompts');
+
+let sessionId = 'session-' + Date.now();
+let isLoading = false;
+
+function getWebhookUrl() {
+  return document.getElementById('webhookUrl').value.trim() || 'http://localhost:5678/webhook/k8s-agent';
+}
+
+function getTime() {
+  return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+function hideWelcome() {
+  if (welcomeEl) {
+    welcomeEl.style.display = 'none';
+    quickPromptsEl.style.display = 'flex';
+  }
+}
+
+function appendMessage(role, content, isMarkdown = false) {
+  hideWelcome();
+
+  const msg = document.createElement('div');
+  msg.className = `message ${role}`;
+
+  const avatar = document.createElement('div');
+  avatar.className = `avatar ${role}`;
+  avatar.textContent = role === 'agent' ? 'K8' : 'YOU';
+
+  const right = document.createElement('div');
+
+  const bubble = document.createElement('div');
+  bubble.className = 'bubble';
+
+  if (isMarkdown) {
+    bubble.innerHTML = marked.parse(content);
+  } else {
+    bubble.textContent = content;
+  }
+
+  const ts = document.createElement('div');
+  ts.className = 'ts';
+  ts.textContent = getTime();
+
+  right.appendChild(bubble);
+  right.appendChild(ts);
+
+  msg.appendChild(avatar);
+  msg.appendChild(right);
+  messagesEl.appendChild(msg);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+
+  return bubble;
+}
+
+function showTyping() {
+  hideWelcome();
+  const el = document.createElement('div');
+  el.className = 'typing';
+  el.id = 'typing';
+  el.innerHTML = `
+    <div class="avatar agent">K8</div>
+    <div class="typing-dots">
+      <div class="dot"></div>
+      <div class="dot"></div>
+      <div class="dot"></div>
+    </div>`;
+  messagesEl.appendChild(el);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+
+function removeTyping() {
+  const el = document.getElementById('typing');
+  if (el) el.remove();
+}
+
+async function sendMessage() {
+  const text = inputEl.value.trim();
+  if (!text || isLoading) return;
+
+  isLoading = true;
+  sendBtn.disabled = true;
+  inputEl.value = '';
+  inputEl.style.height = 'auto';
+
+  appendMessage('user', text);
+  showTyping();
+
+  try {
+    const res = await fetch(getWebhookUrl(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chatInput: text,
+        sessionId: sessionId
+      })
+    });
+
+    removeTyping();
+
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+    const data = await res.json();
+
+    // n8n response parsing — handles various response shapes
+    let reply = '';
+    if (typeof data === 'string') {
+      reply = data;
+    } else if (data.output) {
+      reply = data.output;
+    } else if (data.text) {
+      reply = data.text;
+    } else if (data.message) {
+      reply = data.message;
+    } else if (Array.isArray(data) && data[0]?.output) {
+      reply = data[0].output;
+    } else {
+      reply = JSON.stringify(data, null, 2);
+    }
+
+    appendMessage('agent', reply, true);
+
+  } catch (err) {
+    removeTyping();
+    appendMessage('agent', `**Connection Error**\n\nCould not reach n8n webhook.\n\n\`\`\`\n${err.message}\n\`\`\`\n\nMake sure:\n- n8n is running\n- Webhook URL is correct\n- Workflow is active`, true);
+  }
+
+  isLoading = false;
+  sendBtn.disabled = false;
+  inputEl.focus();
+}
+
+function sendQuick(text) {
+  inputEl.value = text;
+  sendMessage();
+}
+
+// Auto-resize textarea
+inputEl.addEventListener('input', function() {
+  this.style.height = 'auto';
+  this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+});
+
+// Enter to send
+inputEl.addEventListener('keydown', function(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+});
+
+// Load saved webhook URL
+const savedUrl = localStorage.getItem('n8n_webhook_url');
+if (savedUrl) document.getElementById('webhookUrl').value = savedUrl;
+
+document.getElementById('webhookUrl').addEventListener('change', function() {
+  localStorage.setItem('n8n_webhook_url', this.value);
+});
+
+inputEl.focus();
+</script>
+</body>
+</html>

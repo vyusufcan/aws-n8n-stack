@@ -3,7 +3,6 @@ kind: ServiceAccount
 metadata:
   name: n8n-ai-agent
   namespace: kube-system
-
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -45,10 +44,6 @@ rules:
   - apiGroups: ["metrics.k8s.io"]
     resources: ["pods", "nodes"]
     verbs: ["get", "list"]
-
-  # ❌ Secrets — no access
-  # ❌ delete / apply / patch / exec — no access
-
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding

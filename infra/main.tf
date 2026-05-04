@@ -41,6 +41,7 @@ locals {
   name_prefix          = "${var.project_name}-${var.environment}"
   ssh_ingress_cidr     = "${trimspace(data.http.my_ip.response_body)}/32"
   kubeconfig_parameter = "/${local.name_prefix}/k3s/kubeconfig"
+  k3s_ready_parameter  = "/${local.name_prefix}/k3s/private-ip"
 }
 
 resource "aws_security_group" "alb" {
@@ -82,6 +83,14 @@ resource "aws_security_group" "instance" {
   }
 
   ingress {
+    description     = "chat UI from ALB"
+    from_port       = var.chat_host_port
+    to_port         = var.chat_host_port
+    protocol        = "tcp"
+    security_groups = [aws_security_group.alb.id]
+  }
+
+  ingress {
     description = "SSH from current public IP"
     from_port   = 22
     to_port     = 22
@@ -98,39 +107,6 @@ resource "aws_security_group" "instance" {
 
   tags = {
     Name = "${local.name_prefix}-instance-sg"
-  }
-}
-
-resource "aws_security_group" "k8s_instance" {
-  name        = "${local.name_prefix}-k8s-sg"
-  description = "Allow your IP to SSH and the n8n instance to reach k3s"
-  vpc_id      = data.aws_vpc.default.id
-
-  ingress {
-    description = "SSH from current public IP"
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = [local.ssh_ingress_cidr]
-  }
-
-  ingress {
-    description     = "k3s API from n8n instance"
-    from_port       = 6443
-    to_port         = 6443
-    protocol        = "tcp"
-    security_groups = [aws_security_group.instance.id]
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  tags = {
-    Name = "${local.name_prefix}-k8s-sg"
   }
 }
 
@@ -151,8 +127,8 @@ resource "aws_iam_role" "ec2" {
   })
 }
 
-resource "aws_iam_role_policy" "kubeconfig_parameter" {
-  name = "${local.name_prefix}-k3s-kubeconfig"
+resource "aws_iam_role_policy" "kubeconfig_parameter_read" {
+  name = "${local.name_prefix}-k3s-kubeconfig-read"
   role = aws_iam_role.ec2.id
 
   policy = jsonencode({
@@ -161,10 +137,12 @@ resource "aws_iam_role_policy" "kubeconfig_parameter" {
       {
         Effect = "Allow"
         Action = [
-          "ssm:PutParameter",
           "ssm:GetParameter"
         ]
-        Resource = "arn:aws:ssm:${var.aws_region}:*:parameter${local.kubeconfig_parameter}"
+        Resource = [
+          "arn:aws:ssm:${var.aws_region}:*:parameter${local.kubeconfig_parameter}",
+          "arn:aws:ssm:${var.aws_region}:*:parameter${local.k3s_ready_parameter}"
+        ]
       }
     ]
   })
@@ -229,6 +207,46 @@ resource "aws_lb_listener" "https" {
   }
 }
 
+resource "aws_lb_target_group" "chat" {
+  name        = substr("${local.name_prefix}-chat-tg", 0, 32)
+  port        = var.chat_host_port
+  protocol    = "HTTP"
+  target_type = "instance"
+  vpc_id      = data.aws_vpc.default.id
+
+  health_check {
+    enabled             = true
+    healthy_threshold   = 2
+    interval            = 30
+    matcher             = "200-399"
+    path                = "/"
+    port                = tostring(var.chat_host_port)
+    protocol            = "HTTP"
+    timeout             = 5
+    unhealthy_threshold = 2
+  }
+
+  tags = {
+    Name = "${local.name_prefix}-chat-tg"
+  }
+}
+
+resource "aws_lb_listener_rule" "chat" {
+  listener_arn = aws_lb_listener.https.arn
+  priority     = 10
+
+  action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.chat.arn
+  }
+
+  condition {
+    host_header {
+      values = [var.chat_domain_name]
+    }
+  }
+}
+
 resource "aws_instance" "app" {
   ami                         = data.aws_ami.ubuntu.id
   instance_type               = var.instance_type
@@ -239,19 +257,20 @@ resource "aws_instance" "app" {
   key_name                    = var.key_pair_name
 
   user_data = templatefile("${path.module}/user_data.sh.tftpl", {
-    data_device_name             = var.data_device_name
-    data_mount_path              = var.data_mount_path
-    domain_name                  = var.domain_name
-    k3s_kubeconfig_parameter     = local.kubeconfig_parameter
-    k3s_kubeconfig_relative_path = var.k3s_kubeconfig_relative_path
-    n8n_encryption_key           = var.n8n_encryption_key
-    n8n_host_port                = var.n8n_host_port
-    n8n_timezone                 = var.n8n_timezone
+    chat_domain_name              = var.chat_domain_name
+    chat_host_port                = var.chat_host_port
+    chat_html_content_base64_gzip = base64gzip(file("${path.module}/chat.html"))
+    data_device_name              = var.data_device_name
+    data_mount_path               = var.data_mount_path
+    domain_name                   = var.domain_name
+    k3s_kubeconfig_parameter      = local.kubeconfig_parameter
+    k3s_kubeconfig_relative_path  = var.k3s_kubeconfig_relative_path
+    k3s_ready_parameter           = local.k3s_ready_parameter
+    nginx_config_content_base64   = base64encode(replace(file("${path.module}/nginx.conf"), "__CHAT_DOMAIN__", var.chat_domain_name))
+    n8n_encryption_key            = var.n8n_encryption_key
+    n8n_host_port                 = var.n8n_host_port
+    n8n_timezone                  = var.n8n_timezone
   })
-
-  depends_on = [
-    aws_instance.k8s
-  ]
 
   root_block_device {
     volume_size           = var.root_volume_size
@@ -262,31 +281,6 @@ resource "aws_instance" "app" {
 
   tags = {
     Name = "${local.name_prefix}-app"
-  }
-}
-
-resource "aws_instance" "k8s" {
-  ami                         = data.aws_ami.ubuntu.id
-  instance_type               = var.k8s_instance_type
-  subnet_id                   = data.aws_subnet.selected.id
-  associate_public_ip_address = true
-  vpc_security_group_ids      = [aws_security_group.k8s_instance.id]
-  iam_instance_profile        = aws_iam_instance_profile.ec2.name
-  key_name                    = var.key_pair_name
-  user_data = templatefile("${path.module}/user_data_k8s.sh.tftpl", {
-    k3s_kubeconfig_parameter = local.kubeconfig_parameter
-    rbac_yaml_content        = file("${path.module}/RBAC.yaml")
-  })
-
-  root_block_device {
-    volume_size           = var.root_volume_size
-    volume_type           = "gp3"
-    delete_on_termination = true
-    encrypted             = true
-  }
-
-  tags = {
-    Name = "${local.name_prefix}-k8s"
   }
 }
 
@@ -304,10 +298,29 @@ resource "aws_lb_target_group_attachment" "app" {
   port             = var.n8n_host_port
 }
 
+resource "aws_lb_target_group_attachment" "chat" {
+  target_group_arn = aws_lb_target_group.chat.arn
+  target_id        = aws_instance.app.id
+  port             = var.chat_host_port
+}
+
 resource "aws_route53_record" "n8n" {
   allow_overwrite = true
   zone_id         = data.aws_route53_zone.selected.zone_id
   name            = var.domain_name
+  type            = "A"
+
+  alias {
+    name                   = aws_lb.this.dns_name
+    zone_id                = aws_lb.this.zone_id
+    evaluate_target_health = true
+  }
+}
+
+resource "aws_route53_record" "chat" {
+  allow_overwrite = true
+  zone_id         = data.aws_route53_zone.selected.zone_id
+  name            = var.chat_domain_name
   type            = "A"
 
   alias {

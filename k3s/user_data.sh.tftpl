@@ -83,4 +83,11 @@ aws ssm put-parameter \
   --overwrite \
   --value file://"$N8N_KUBECONFIG_PATH"
 
+aws ssm put-parameter \
+  --region "$AWS_REGION" \
+  --name "${k3s_ready_parameter}" \
+  --type "String" \
+  --overwrite \
+  --value "$PRIVATE_IP"
+
 curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
