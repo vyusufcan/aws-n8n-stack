@@ -33,6 +33,15 @@ ${rbac_yaml_content}
 EOF_RBAC
 kubectl apply -f /root/n8n-rbac.yaml
 
+cat > /root/prometheus.sh <<'EOF_PROM_SCRIPT'
+${prometheus_script_content}
+EOF_PROM_SCRIPT
+chmod 0755 /root/prometheus.sh
+
+cat > /root/prometheus-values.yaml <<'EOF_PROM_VALUES'
+${prometheus_values_content}
+EOF_PROM_VALUES
+
 cat > /root/n8n-ai-agent-token-secret.yaml <<'EOF_SECRET'
 apiVersion: v1
 kind: Secret

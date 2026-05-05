@@ -39,7 +39,7 @@ alertmanager:
     receivers:
       - name: 'n8n-webhook'
         webhook_configs:
-          - url: ''
+          - url: 'http://<your-host>:5678/webhook/prometheus-alert'
             send_resolved: true
             max_alerts: 5
 

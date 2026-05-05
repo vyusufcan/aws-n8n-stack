@@ -37,9 +37,14 @@ data "http" "my_ip" {
   url = "https://checkip.amazonaws.com/"
 }
 
+data "aws_ssm_parameter" "k3s_private_ip" {
+  name = local.k3s_ready_parameter
+}
+
 locals {
   name_prefix          = "${var.project_name}-${var.environment}"
   ssh_ingress_cidr     = "${trimspace(data.http.my_ip.response_body)}/32"
+  k3s_ingress_cidr     = "${trimspace(data.aws_ssm_parameter.k3s_private_ip.value)}/32"
   kubeconfig_parameter = "/${local.name_prefix}/k3s/kubeconfig"
   k3s_ready_parameter  = "/${local.name_prefix}/k3s/private-ip"
 }
@@ -71,7 +76,7 @@ resource "aws_security_group" "alb" {
 
 resource "aws_security_group" "instance" {
   name        = "${local.name_prefix}-instance-sg"
-  description = "Allow ALB to reach n8n and your IP to SSH"
+  description = "Allow ALB and k3s to reach n8n and your IP to SSH"
   vpc_id      = data.aws_vpc.default.id
 
   ingress {
@@ -80,6 +85,14 @@ resource "aws_security_group" "instance" {
     to_port         = var.n8n_host_port
     protocol        = "tcp"
     security_groups = [aws_security_group.alb.id]
+  }
+
+  ingress {
+    description = "n8n from k3s server"
+    from_port   = var.n8n_host_port
+    to_port     = var.n8n_host_port
+    protocol    = "tcp"
+    cidr_blocks = [local.k3s_ingress_cidr]
   }
 
   ingress {

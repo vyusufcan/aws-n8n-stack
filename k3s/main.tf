@@ -130,9 +130,11 @@ resource "aws_instance" "k3s" {
   iam_instance_profile        = aws_iam_instance_profile.ec2.name
   key_name                    = var.key_pair_name
   user_data = templatefile("${path.module}/user_data.sh.tftpl", {
-    k3s_kubeconfig_parameter = local.kubeconfig_parameter
-    k3s_ready_parameter      = local.k3s_ready_parameter
-    rbac_yaml_content        = file("${path.module}/RBAC.yaml")
+    k3s_kubeconfig_parameter  = local.kubeconfig_parameter
+    k3s_ready_parameter       = local.k3s_ready_parameter
+    prometheus_script_content = file("${path.module}/prometheus.sh")
+    prometheus_values_content = file("${path.module}/prometheus.yaml")
+    rbac_yaml_content         = file("${path.module}/RBAC.yaml")
   })
 
   root_block_device {
