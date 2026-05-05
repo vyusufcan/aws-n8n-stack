@@ -1,0 +1,115 @@
+prometheus:
+  prometheusSpec:
+    retention: 2d
+    resources:
+      requests:
+        memory: 200Mi
+        cpu: 100m
+      limits:
+        memory: 400Mi
+        cpu: 300m
+
+alertmanager:
+  alertmanagerSpec:
+    resources:
+      requests:
+        memory: 50Mi
+        cpu: 20m
+      limits:
+        memory: 100Mi
+        cpu: 50m
+  config:
+    global:
+      resolve_timeout: 5m
+    route:
+      group_by: ['alertname', 'namespace']
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 12h
+      receiver: 'n8n-webhook'
+      routes:
+        - match:
+            severity: critical
+          receiver: 'n8n-webhook'
+          repeat_interval: 1h
+        - match:
+            severity: warning
+          receiver: 'n8n-webhook'
+          repeat_interval: 6h
+    receivers:
+      - name: 'n8n-webhook'
+        webhook_configs:
+          - url: ''
+            send_resolved: true
+            max_alerts: 5
+
+grafana:
+  enabled: false
+
+kube-state-metrics:
+  resources:
+    requests:
+      memory: 30Mi
+      cpu: 10m
+    limits:
+      memory: 60Mi
+      cpu: 50m
+
+prometheus-node-exporter:
+  resources:
+    requests:
+      memory: 20Mi
+      cpu: 10m
+    limits:
+      memory: 40Mi
+      cpu: 50m
+
+prometheusOperator:
+  resources:
+    requests:
+      memory: 50Mi
+      cpu: 20m
+    limits:
+      memory: 100Mi
+      cpu: 100m
+
+additionalPrometheusRulesMap:
+  test-rules:
+    groups:
+      - name: pod-alerts
+        rules:
+          - alert: PodCrashLooping
+            expr: rate(kube_pod_container_status_restarts_total[5m]) > 0
+            for: 1m
+            labels:
+              severity: critical
+            annotations:
+              summary: "CrashLoop: {{ $labels.pod }}"
+              description: "{{ $labels.namespace }}/{{ $labels.pod }}"
+
+          - alert: PodNotReady
+            expr: kube_pod_status_ready{condition="false"} == 1
+            for: 2m
+            labels:
+              severity: warning
+            annotations:
+              summary: "NotReady: {{ $labels.pod }}"
+              description: "{{ $labels.namespace }}/{{ $labels.pod }}"
+
+          - alert: NodeNotReady
+            expr: kube_node_status_condition{condition="Ready",status="true"} == 0
+            for: 1m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Node down: {{ $labels.node }}"
+              description: "{{ $labels.node }}"
+
+          - alert: HighMemoryUsage
+            expr: (container_memory_working_set_bytes / container_spec_memory_limit_bytes) > 0.8
+            for: 2m
+            labels:
+              severity: warning
+            annotations:
+              summary: "HighMem: {{ $labels.container }}"
+              description: "{{ $labels.namespace }}/{{ $labels.container }}"
