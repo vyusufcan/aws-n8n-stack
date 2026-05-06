@@ -36,3 +36,10 @@ This repository provisions and operates an AWS-hosted `n8n` deployment with supp
 - [infra/main.tf](../infra/main.tf)
 - [infra/user_data.sh.tftpl](../infra/user_data.sh.tftpl)
 - [k3s/user_data.sh.tftpl](../k3s/user_data.sh.tftpl)
+
+## Docs
+
+- [docs/infra-diagram.html](../docs/infra-diagram.html) — full-architecture HTML diagram: infra components, Terraform stacks, and both n8n workflows on a single page. **Primary visual reference.** (Supersedes the old Mermaid-based `infra-diagram.md` which is kept for reference only.)
+- [docs/overview-presentation.html](../docs/overview-presentation.html) — 8-slide HTML presentation covering design rationale, stack layout, traffic flow, persistence model, and both workflow deep dives. Keyboard-navigable. (Supersedes the old 4-slide `infra-presentation.html`.)
+- [docs/infra-diagram.md](../docs/infra-diagram.md) — original Mermaid flowchart, infra-only. No longer the primary diagram.
+- [docs/infra-presentation.html](../docs/infra-presentation.html) — original 4-slide presentation, infra-only. No longer the primary presentation.

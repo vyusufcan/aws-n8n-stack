@@ -52,3 +52,8 @@
 - Both workflows depend on the kubeconfig file at `./.n8n/k3s/kubeconfig.yaml`.
 - Both workflows use the same OpenAI credential name: `OpenAI account`.
 - Both workflows are active exports.
+
+## Visual Documentation
+
+- [docs/infra-diagram.html](../docs/infra-diagram.html) — full architecture diagram including both workflow cards with step-by-step flow strips and metadata.
+- [docs/overview-presentation.html](../docs/overview-presentation.html) — slides 6, 7, and 8 cover the workflow overview, K8S SRE deep dive, and Prometheus Alert Manager flow respectively.

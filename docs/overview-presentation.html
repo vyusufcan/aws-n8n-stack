@@ -1,0 +1,489 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>n8n Platform Overview</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --panel: #161b22;
+      --border: #30363d;
+      --ink: #e6edf3;
+      --muted: #8b949e;
+      --accent: #58a6ff;
+      --accent-2: #3fb950;
+      --accent-3: #f78166;
+      --accent-4: #d2a8ff;
+      --shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 32px 20px;
+    }
+
+    .deck {
+      width: min(1020px, 100%);
+    }
+
+    .slide {
+      display: none;
+      min-height: 68vh;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      box-shadow: var(--shadow);
+      padding: 52px 56px 72px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .slide::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse at top left, rgba(88, 166, 255, 0.06), transparent 55%);
+      pointer-events: none;
+    }
+
+    .slide.active { display: block; }
+
+    .label {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 20px;
+    }
+
+    h1 {
+      font-size: clamp(36px, 5.5vw, 64px);
+      font-weight: 800;
+      line-height: 1.05;
+      letter-spacing: -0.02em;
+      margin-bottom: 20px;
+    }
+
+    h2 {
+      font-size: clamp(26px, 3.5vw, 44px);
+      font-weight: 700;
+      line-height: 1.1;
+      letter-spacing: -0.015em;
+      margin-bottom: 24px;
+    }
+
+    .lead {
+      font-size: 18px;
+      line-height: 1.65;
+      color: var(--muted);
+      max-width: 60ch;
+    }
+
+    .lead strong {
+      color: var(--ink);
+      font-weight: 600;
+    }
+
+    code {
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 0.88em;
+      background: rgba(88, 166, 255, 0.1);
+      color: var(--accent);
+      padding: 2px 7px;
+      border-radius: 5px;
+    }
+
+    ul {
+      list-style: none;
+      margin-top: 28px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    li {
+      font-size: 18px;
+      line-height: 1.55;
+      color: var(--muted);
+      padding-left: 22px;
+      position: relative;
+    }
+
+    li::before {
+      content: "—";
+      position: absolute;
+      left: 0;
+      color: var(--accent);
+      font-weight: 700;
+    }
+
+    li strong { color: var(--ink); font-weight: 600; }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 16px;
+      margin-top: 32px;
+    }
+
+    .grid-4 {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+      margin-top: 32px;
+    }
+
+    .card {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 20px 22px;
+    }
+
+    .card .card-label {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+
+    .card p {
+      font-size: 15px;
+      line-height: 1.6;
+      color: var(--muted);
+    }
+
+    .card p strong { color: var(--ink); }
+
+    .green  { color: var(--accent-2); }
+    .blue   { color: var(--accent); }
+    .red    { color: var(--accent-3); }
+    .purple { color: var(--accent-4); }
+
+    .badge {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      padding: 3px 10px;
+      border-radius: 999px;
+      margin-bottom: 14px;
+    }
+
+    .badge.green  { background: rgba(63, 185, 80, 0.15);  color: var(--accent-2); }
+    .badge.blue   { background: rgba(88, 166, 255, 0.15); color: var(--accent); }
+    .badge.red    { background: rgba(247, 129, 102, 0.15);color: var(--accent-3); }
+    .badge.purple { background: rgba(210, 168, 255, 0.15);color: var(--accent-4); }
+
+    .flow-row {
+      display: flex;
+      align-items: stretch;
+      gap: 0;
+      margin-top: 32px;
+      overflow: hidden;
+      border-radius: 14px;
+      border: 1px solid var(--border);
+    }
+
+    .flow-step {
+      flex: 1;
+      padding: 18px 16px;
+      background: rgba(255,255,255,0.02);
+      border-right: 1px solid var(--border);
+      font-size: 14px;
+      line-height: 1.5;
+      color: var(--muted);
+      position: relative;
+    }
+
+    .flow-step:last-child { border-right: none; }
+
+    .flow-step .num {
+      display: block;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--accent-3);
+      margin-bottom: 8px;
+    }
+
+    .flow-step strong { color: var(--ink); font-size: 15px; display: block; margin-bottom: 6px; }
+
+    .page-num {
+      position: absolute;
+      right: 24px;
+      bottom: 18px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--muted);
+      letter-spacing: 0.05em;
+    }
+
+    .title-accent {
+      display: inline-block;
+      background: linear-gradient(90deg, var(--accent), var(--accent-4));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .nav {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      margin-top: 20px;
+    }
+
+    .dots {
+      display: flex;
+      gap: 6px;
+    }
+
+    .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--border);
+      transition: background 0.2s;
+    }
+
+    .dot.active { background: var(--accent); }
+
+    button {
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 9px 20px;
+      background: transparent;
+      color: var(--ink);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+    }
+
+    button:hover { border-color: var(--accent); background: rgba(88,166,255,0.08); }
+
+    @media (max-width: 680px) {
+      .slide { padding: 28px 24px 60px; }
+      .grid-2, .grid-4 { grid-template-columns: 1fr; }
+      .flow-row { flex-direction: column; }
+      .flow-step { border-right: none; border-bottom: 1px solid var(--border); }
+      .flow-step:last-child { border-bottom: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="deck">
+
+    <!-- 1. Title -->
+    <section class="slide active">
+      <div class="label">Platform Overview · 2025</div>
+      <h1><span class="title-accent">n8n</span> on AWS<br>Infrastructure &amp; Automation</h1>
+      <p class="lead">
+        A production-grade n8n deployment built on a <strong>split-stack Terraform model</strong> — stateful storage, a k3s cluster, and the application layer each live in their own boundary so any layer can be rebuilt without touching the others.
+      </p>
+      <p class="lead" style="margin-top: 16px;">
+        On top of the infrastructure, two n8n workflows provide <strong>AI-driven Kubernetes operations</strong>: one for on-demand SRE chat and one for autonomous alert investigation.
+      </p>
+      <div class="page-num">1 / 8</div>
+    </section>
+
+    <!-- 2. Why split stacks -->
+    <section class="slide">
+      <div class="label">Design Rationale</div>
+      <h2>Why split the infrastructure into separate stacks?</h2>
+      <p class="lead">Most people run everything in one Terraform root. That works until you need to replace the app server — at which point your data, your cluster, and your compute all live and die together.</p>
+      <ul>
+        <li><strong>Persistent data stays safe.</strong> The EBS volume lives in its own <code>storage/</code> stack. Destroying the app instance never touches it.</li>
+        <li><strong>The cluster stays decoupled.</strong> <code>k3s/</code> publishes its details into SSM so the app can discover them at boot time without hard-coded addresses.</li>
+        <li><strong>Rebuilds become routine.</strong> <code>infra/</code> can be torn down and recreated in a single apply. No data migration, no manual re-wiring.</li>
+        <li><strong>Blast radius is small.</strong> A bad <code>infra/</code> change cannot accidentally destroy the volume or the cluster.</li>
+      </ul>
+      <div class="page-num">2 / 8</div>
+    </section>
+
+    <!-- 3. Four stacks -->
+    <section class="slide">
+      <div class="label">Stack Layout</div>
+      <h2>Four ownership boundaries, one dependency chain</h2>
+      <div class="grid-4">
+        <div class="card">
+          <div class="card-label blue">1 · bootstrap</div>
+          <p>Creates the <strong>S3 bucket</strong> that holds remote Terraform state for all other stacks. Run once, never touch again.</p>
+        </div>
+        <div class="card">
+          <div class="card-label green">2 · storage</div>
+          <p>Owns the <strong>persistent encrypted EBS volume</strong> mounted at <code>/srv/n8n</code>. This is the only stack that should never be destroyed.</p>
+        </div>
+        <div class="card">
+          <div class="card-label purple">3 · k3s</div>
+          <p>Provisions a standalone <strong>k3s EC2 server</strong> and writes its private IP and kubeconfig path to <strong>SSM Parameter Store</strong>.</p>
+        </div>
+        <div class="card">
+          <div class="card-label red">4 · infra</div>
+          <p>Builds the <strong>app EC2 host, ALB, Route53 records, IAM profile</strong>, and attaches the volume. Reads k3s details from SSM at plan time.</p>
+        </div>
+      </div>
+      <div class="page-num">3 / 8</div>
+    </section>
+
+    <!-- 4. Traffic flow -->
+    <section class="slide">
+      <div class="label">Traffic &amp; Networking</div>
+      <h2>How a request gets from the internet to n8n</h2>
+      <ul>
+        <li><strong>Route53</strong> resolves <code>n8n.vyusufcan.cloud</code> and <code>chat.vyusufcan.cloud</code> to the ALB.</li>
+        <li><strong>ALB</strong> accepts HTTPS on port <code>443</code>, terminates TLS, and forwards based on host header — n8n traffic to port <code>5678</code>, chat UI traffic to port <code>80</code>.</li>
+        <li><strong>Security groups</strong> are tight: the app instance only accepts those two ports from the ALB, and SSH only from the operator IP captured at apply time.</li>
+        <li><strong>k3s</strong> can reach the app instance directly on port <code>5678</code>, using the security group rule derived from the SSM private IP — no public exposure needed.</li>
+      </ul>
+      <div class="page-num">4 / 8</div>
+    </section>
+
+    <!-- 5. Persistence -->
+    <section class="slide">
+      <div class="label">Data &amp; Persistence</div>
+      <h2>What survives a rebuild and what doesn't</h2>
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-label green">Durable</div>
+          <p>The <strong>EBS volume</strong> holds all n8n workflow data, credentials, and execution history. It is managed by <code>storage/</code>, detached and reattached on each app rebuild, never deleted by <code>infra/</code> teardown.</p>
+        </div>
+        <div class="card">
+          <div class="card-label red">Ephemeral</div>
+          <p>The <strong>EC2 root disk</strong> is disposable. Every <code>infra/</code> apply starts with a fresh Ubuntu 24.04 instance that bootstraps itself from user data, then mounts the persistent volume at <code>/srv/n8n</code>.</p>
+        </div>
+        <div class="card">
+          <div class="card-label blue">Bootstrap Process</div>
+          <p>On first boot, <code>user_data.sh.tftpl</code> pulls the kubeconfig from SSM, mounts the EBS volume, and starts n8n in Docker with the data path mapped to <code>/home/node/.n8n</code> inside the container.</p>
+        </div>
+        <div class="card">
+          <div class="card-label purple">SSM as Glue</div>
+          <p>SSM Parameter Store holds <code>k3s/kubeconfig</code> and <code>k3s/private-ip</code>. Both are written by the k3s stack and consumed by infra at plan time and by the app host at boot time.</p>
+        </div>
+      </div>
+      <div class="page-num">5 / 8</div>
+    </section>
+
+    <!-- 6. Workflows overview -->
+    <section class="slide">
+      <div class="label">n8n Automation</div>
+      <h2>Two workflows that make the cluster observable</h2>
+      <p class="lead">Both workflows give n8n shell access to <code>kubectl</code> on the app host, using the kubeconfig written to <code>.n8n/k3s/kubeconfig.yaml</code> during bootstrap. Both are read-only by design — no mutations allowed.</p>
+      <div class="grid-2" style="margin-top: 28px;">
+        <div class="card">
+          <div class="badge blue">K8S SRE</div>
+          <p style="font-size:16px; line-height:1.6; color: var(--muted);">
+            A <strong style="color:var(--ink)">chat-driven assistant</strong> you talk to directly. Ask it what's wrong with your cluster and it investigates using kubectl, then replies in structured markdown. Available as an MCP tool.
+          </p>
+        </div>
+        <div class="card">
+          <div class="badge red">Prometheus Alert Manager</div>
+          <p style="font-size:16px; line-height:1.6; color: var(--muted);">
+            A <strong style="color:var(--ink)">webhook-triggered responder</strong>. When Alertmanager fires, this workflow automatically investigates the affected pod, builds a full incident report, and emails it.
+          </p>
+        </div>
+      </div>
+      <div class="page-num">6 / 8</div>
+    </section>
+
+    <!-- 7. K8S SRE -->
+    <section class="slide">
+      <div class="label">Workflow Deep Dive · 1 of 2</div>
+      <h2>K8S SRE — the on-demand investigation agent</h2>
+      <p class="lead">You open the chat UI, describe a symptom, and the agent figures out what's happening in the cluster without you having to write a single kubectl command yourself.</p>
+      <ul>
+        <li><strong>Trigger:</strong> public chat webhook — works from the n8n UI or any MCP-compatible client.</li>
+        <li><strong>Model:</strong> <code>gpt-4o</code> with a rolling memory window of the last 10 messages so the conversation has context.</li>
+        <li><strong>Tool:</strong> an <code>Execute Command</code> node that runs kubectl with <code>--kubeconfig</code> explicitly set on every call.</li>
+        <li><strong>Safety rules baked into the prompt:</strong> read-only commands only, no <code>delete</code> / <code>apply</code> / <code>exec</code> / <code>port-forward</code>, max 10 kubectl calls per investigation.</li>
+        <li><strong>Output:</strong> pod listings as markdown tables; all other findings as structured status, findings, commands run, and recommendations.</li>
+      </ul>
+      <div class="page-num">7 / 8</div>
+    </section>
+
+    <!-- 8. Prometheus Alert Manager -->
+    <section class="slide">
+      <div class="label">Workflow Deep Dive · 2 of 2</div>
+      <h2>Prometheus Alert Manager — autonomous incident response</h2>
+      <p class="lead">When Alertmanager sends a webhook, this workflow wakes up, investigates the incident without human input, and delivers a formatted report straight to your inbox.</p>
+      <div class="flow-row">
+        <div class="flow-step">
+          <span class="num">Step 1</span>
+          <strong>Receive</strong>
+          Webhook on <code>POST /prometheus-alert</code> accepts the Alertmanager payload.
+        </div>
+        <div class="flow-step">
+          <span class="num">Step 2</span>
+          <strong>Parse</strong>
+          Extracts alertname, severity, namespace, pod, status, summary, description, and start time.
+        </div>
+        <div class="flow-step">
+          <span class="num">Step 3</span>
+          <strong>Investigate</strong>
+          AI agent runs read-only kubectl commands against the affected pod or node. Same safety rules as the SRE workflow.
+        </div>
+        <div class="flow-step">
+          <span class="num">Step 4</span>
+          <strong>Report</strong>
+          Agent outputs strict JSON — incident metadata, root cause, recommendations, and commands run.
+        </div>
+        <div class="flow-step">
+          <span class="num">Step 5</span>
+          <strong>Email</strong>
+          HTML incident report with severity-colored header sent via Gmail to the on-call address.
+        </div>
+      </div>
+      <div class="page-num">8 / 8</div>
+    </section>
+
+    <nav class="nav">
+      <button id="prev" type="button">← Prev</button>
+      <div class="dots" id="dots"></div>
+      <button id="next" type="button">Next →</button>
+    </nav>
+  </div>
+
+  <script>
+    const slides = Array.from(document.querySelectorAll(".slide"));
+    const dotsContainer = document.getElementById("dots");
+    let index = 0;
+
+    slides.forEach((_, i) => {
+      const dot = document.createElement("div");
+      dot.className = "dot" + (i === 0 ? " active" : "");
+      dot.addEventListener("click", () => go(i));
+      dotsContainer.appendChild(dot);
+    });
+
+    function go(n) {
+      slides[index].classList.remove("active");
+      dotsContainer.children[index].classList.remove("active");
+      index = (n + slides.length) % slides.length;
+      slides[index].classList.add("active");
+      dotsContainer.children[index].classList.add("active");
+    }
+
+    document.getElementById("prev").addEventListener("click", () => go(index - 1));
+    document.getElementById("next").addEventListener("click", () => go(index + 1));
+
+    document.addEventListener("keydown", e => {
+      if (e.key === "ArrowRight" || e.key === "ArrowDown") go(index + 1);
+      if (e.key === "ArrowLeft"  || e.key === "ArrowUp")   go(index - 1);
+    });
+  </script>
+</body>
+</html>

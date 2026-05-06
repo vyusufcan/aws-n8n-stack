@@ -1,0 +1,723 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>n8n Infrastructure Diagram</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --panel: #161b22;
+      --border: #30363d;
+      --ink: #e6edf3;
+      --muted: #8b949e;
+      --accent: #58a6ff;
+      --green: #3fb950;
+      --red: #f78166;
+      --purple: #d2a8ff;
+      --yellow: #e3b341;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+      padding: 40px 32px 60px;
+      min-width: 900px;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 48px;
+    }
+
+    header .eyebrow {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 10px;
+    }
+
+    header h1 {
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    header p {
+      margin-top: 8px;
+      font-size: 15px;
+      color: var(--muted);
+    }
+
+    /* ── Section labels ── */
+    .section-label {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 12px;
+    }
+
+    /* ── Node boxes ── */
+    .node {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px 18px;
+      text-align: center;
+      position: relative;
+    }
+
+    .node .node-label {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+
+    .node .node-detail {
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.55;
+    }
+
+    .node code {
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 11px;
+      background: rgba(88,166,255,0.1);
+      color: var(--accent);
+      padding: 1px 5px;
+      border-radius: 4px;
+    }
+
+    .node.blue   { border-color: rgba(88,166,255,0.4);  }
+    .node.green  { border-color: rgba(63,185,80,0.4);   }
+    .node.purple { border-color: rgba(210,168,255,0.4); }
+    .node.red    { border-color: rgba(247,129,102,0.4); }
+    .node.yellow { border-color: rgba(227,179,65,0.4);  }
+
+    .node .node-label.blue   { color: var(--accent); }
+    .node .node-label.green  { color: var(--green);  }
+    .node .node-label.purple { color: var(--purple); }
+    .node .node-label.red    { color: var(--red);    }
+    .node .node-label.yellow { color: var(--yellow); }
+
+    /* ── Arrow connector ── */
+    .arrow {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0;
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.3;
+    }
+
+    .arrow .line {
+      width: 1px;
+      background: var(--border);
+      flex: 1;
+      min-height: 20px;
+    }
+
+    .arrow .tip { font-size: 16px; color: var(--border); line-height: 1; }
+    .arrow .note { font-size: 10px; color: var(--muted); letter-spacing: 0.05em; }
+
+    .arrow-h {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      color: var(--muted);
+    }
+
+    .arrow-h .line { height: 1px; background: var(--border); flex: 1; min-width: 20px; }
+    .arrow-h .tip  { font-size: 16px; color: var(--border); line-height: 1; }
+
+    /* ── Layout containers ── */
+    .center-col {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0;
+    }
+
+    .row {
+      display: flex;
+      align-items: stretch;
+      gap: 0;
+    }
+
+    .col {
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 0;
+    }
+
+    /* ── Top: Internet layer ── */
+    .internet-row {
+      display: flex;
+      justify-content: center;
+      gap: 16px;
+      margin-bottom: 0;
+    }
+
+    /* ── Middle: App + Sidecars ── */
+    .middle-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0;
+      width: 100%;
+    }
+
+    .app-node {
+      background: var(--panel);
+      border: 1px solid rgba(88,166,255,0.4);
+      border-radius: 16px;
+      padding: 20px 28px;
+      min-width: 260px;
+      text-align: center;
+    }
+
+    .app-node .app-label {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 10px;
+    }
+
+    .app-node .service {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      color: var(--muted);
+      border-top: 1px solid var(--border);
+      padding: 7px 0;
+      gap: 12px;
+    }
+
+    .app-node .service:first-of-type { border-top: none; }
+
+    .app-node .service span { color: var(--ink); font-weight: 600; }
+
+    /* ── Terraform stacks panel ── */
+    .tf-panel {
+      background: rgba(63,185,80,0.04);
+      border: 1px solid rgba(63,185,80,0.2);
+      border-radius: 16px;
+      padding: 20px;
+      width: 100%;
+    }
+
+    .tf-panel .tf-title {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--green);
+      margin-bottom: 14px;
+      text-align: center;
+    }
+
+    .tf-stacks {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+    }
+
+    .tf-stack {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 10px;
+      text-align: center;
+    }
+
+    .tf-stack .tf-num {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--green);
+      margin-bottom: 6px;
+    }
+
+    .tf-stack .tf-name {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--ink);
+      margin-bottom: 4px;
+    }
+
+    .tf-stack .tf-desc {
+      font-size: 11px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    /* ── Workflow section ── */
+    .wf-section {
+      width: 100%;
+      margin-top: 40px;
+    }
+
+    .wf-title {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--muted);
+      text-align: center;
+      margin-bottom: 16px;
+    }
+
+    .wf-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+
+    .wf-card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 22px 24px;
+      overflow: hidden;
+    }
+
+    .wf-card.sre   { border-color: rgba(88,166,255,0.35);  }
+    .wf-card.alert { border-color: rgba(247,129,102,0.35); }
+
+    .wf-card .wf-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .wf-badge {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      padding: 3px 10px;
+      border-radius: 999px;
+    }
+
+    .wf-badge.blue { background: rgba(88,166,255,0.12); color: var(--accent); }
+    .wf-badge.red  { background: rgba(247,129,102,0.12);color: var(--red);   }
+
+    .wf-card .wf-name {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--ink);
+    }
+
+    .wf-steps {
+      display: flex;
+      gap: 0;
+      margin-top: 14px;
+      overflow: hidden;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+    }
+
+    .wf-step {
+      flex: 1;
+      padding: 10px 10px;
+      border-right: 1px solid var(--border);
+      font-size: 11px;
+      line-height: 1.5;
+      color: var(--muted);
+      text-align: center;
+    }
+
+    .wf-step:last-child { border-right: none; }
+
+    .wf-step .s-num {
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+
+    .wf-step strong { display: block; color: var(--ink); font-size: 12px; margin-bottom: 2px; }
+
+    .wf-meta {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-top: 14px;
+    }
+
+    .wf-meta-item {
+      background: rgba(255,255,255,0.025);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 10px;
+      font-size: 11px;
+    }
+
+    .wf-meta-item .key {
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 3px;
+    }
+
+    .wf-meta-item .val {
+      color: var(--ink);
+      font-weight: 600;
+    }
+
+    /* ── Divider ── */
+    .divider {
+      width: 100%;
+      height: 1px;
+      background: var(--border);
+      margin: 36px 0;
+      position: relative;
+    }
+
+    /* ── Legend ── */
+    .legend {
+      display: flex;
+      gap: 24px;
+      justify-content: center;
+      margin-top: 36px;
+      flex-wrap: wrap;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .legend-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      border: 2px solid;
+      flex-shrink: 0;
+    }
+
+    /* ── Horizontal arrow line ── */
+    .h-connector {
+      display: flex;
+      align-items: center;
+      padding: 0 4px;
+    }
+
+    .h-connector .hline {
+      width: 32px;
+      height: 1px;
+      background: var(--border);
+    }
+
+    .h-connector .htip {
+      color: var(--border);
+      font-size: 14px;
+    }
+
+    /* ── Vertical connector ── */
+    .v-connector {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      height: 36px;
+    }
+
+    .v-connector .vline {
+      width: 1px;
+      flex: 1;
+      background: var(--border);
+    }
+
+    .v-connector .vtip {
+      color: var(--border);
+      font-size: 14px;
+      line-height: 1;
+    }
+
+    /* Shared note */
+    .shared-note {
+      text-align: center;
+      margin-top: 12px;
+      font-size: 12px;
+      color: var(--muted);
+      background: rgba(255,255,255,0.02);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 16px;
+    }
+
+    .shared-note code {
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 11px;
+      background: rgba(88,166,255,0.1);
+      color: var(--accent);
+      padding: 1px 5px;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="eyebrow">Infrastructure Diagram · eu-west-1</div>
+    <h1>n8n Platform — Full Architecture</h1>
+    <p>Split-stack Terraform deployment with AI-driven Kubernetes automation workflows</p>
+  </header>
+
+  <!-- ══════════════════════════════════════════
+       SECTION 1 · LIVE INFRASTRUCTURE
+  ══════════════════════════════════════════ -->
+
+  <div class="section-label" style="text-align:center;">Live Infrastructure</div>
+
+  <!-- Internet -->
+  <div style="display:flex; justify-content:center; gap:16px;">
+    <div class="node blue" style="min-width:200px;">
+      <div class="node-label blue">User Browser</div>
+      <div class="node-detail">Public internet traffic</div>
+    </div>
+    <div class="node blue" style="min-width:260px;">
+      <div class="node-label blue">Route53 DNS</div>
+      <div class="node-detail">
+        <code>n8n.vyusufcan.cloud</code><br>
+        <code>chat.vyusufcan.cloud</code>
+      </div>
+    </div>
+  </div>
+
+  <div class="v-connector"><div class="vline"></div><div class="vtip">▼</div></div>
+
+  <!-- ALB -->
+  <div style="display:flex; justify-content:center;">
+    <div class="node blue" style="min-width:320px;">
+      <div class="node-label blue">Application Load Balancer</div>
+      <div class="node-detail">HTTPS <code>443</code> · TLS termination · host-based routing</div>
+    </div>
+  </div>
+
+  <div class="v-connector"><div class="vline"></div><div class="vtip">▼</div></div>
+
+  <!-- EC2 App Host + side nodes -->
+  <div class="middle-row">
+
+    <!-- k3s side -->
+    <div style="display:flex; flex-direction:column; align-items:flex-end; gap:0; margin-right:0;">
+      <div class="node purple" style="min-width:190px;">
+        <div class="node-label purple">k3s EC2 Server</div>
+        <div class="node-detail">Ubuntu · API <code>6443</code><br>Standalone cluster node</div>
+      </div>
+      <div class="v-connector" style="align-self:center;"><div class="vline"></div><div class="vtip">▼</div></div>
+      <div class="node yellow" style="min-width:190px;">
+        <div class="node-label yellow">SSM Parameter Store</div>
+        <div class="node-detail"><code>k3s/private-ip</code><br><code>k3s/kubeconfig</code></div>
+      </div>
+    </div>
+
+    <!-- H connector: SSM → App -->
+    <div class="h-connector" style="margin: 0 8px; align-self:flex-end; padding-bottom: 46px;">
+      <div class="hline"></div>
+      <div class="htip">▶</div>
+    </div>
+
+    <!-- App host -->
+    <div class="app-node">
+      <div class="app-label">EC2 App Host · Ubuntu 24.04</div>
+      <div class="service"><span>n8n</span> Docker · port <code>5678</code></div>
+      <div class="service"><span>Chat UI</span> nginx · port <code>80</code></div>
+      <div class="service"><span>kubectl</span> shell via kubeconfig</div>
+    </div>
+
+    <!-- H connector: App → EBS -->
+    <div class="h-connector" style="margin: 0 8px;">
+      <div class="hline"></div>
+      <div class="htip">▶</div>
+    </div>
+
+    <!-- EBS -->
+    <div class="node green" style="min-width:190px;">
+      <div class="node-label green">Persistent EBS Volume</div>
+      <div class="node-detail">Encrypted · mounted at <code>/srv/n8n</code><br>Survives app rebuilds</div>
+    </div>
+
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       SECTION 2 · TERRAFORM STACKS
+  ══════════════════════════════════════════ -->
+
+  <div class="divider"></div>
+
+  <div class="section-label" style="text-align:center;">Terraform Ownership Boundaries</div>
+
+  <div class="tf-panel">
+    <div class="tf-title">Provisioning order: bootstrap → storage → k3s → infra</div>
+    <div class="tf-stacks">
+      <div class="tf-stack">
+        <div class="tf-num">1 · bootstrap/</div>
+        <div class="tf-name">Remote State</div>
+        <div class="tf-desc">Creates the S3 bucket for Terraform state. Run once.</div>
+      </div>
+      <div class="tf-stack">
+        <div class="tf-num">2 · storage/</div>
+        <div class="tf-name">Persistent Volume</div>
+        <div class="tf-desc">Creates and owns the EBS volume. Never destroyed.</div>
+      </div>
+      <div class="tf-stack">
+        <div class="tf-num">3 · k3s/</div>
+        <div class="tf-name">Cluster Server</div>
+        <div class="tf-desc">Provisions k3s EC2 and writes SSM params. Disposable.</div>
+      </div>
+      <div class="tf-stack">
+        <div class="tf-num">4 · infra/</div>
+        <div class="tf-name">App Layer</div>
+        <div class="tf-desc">EC2 host, ALB, Route53, IAM, security groups. Disposable.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       SECTION 3 · N8N WORKFLOWS
+  ══════════════════════════════════════════ -->
+
+  <div class="divider"></div>
+
+  <div class="section-label" style="text-align:center;">n8n Automation Workflows</div>
+
+  <div class="shared-note">
+    Both workflows run on the app host and share kubectl shell access via
+    <code>.n8n/k3s/kubeconfig.yaml</code> · Model: <code>gpt-4o</code> · Read-only · Max 10 kubectl calls per run
+  </div>
+
+  <div class="wf-grid" style="margin-top:16px;">
+
+    <!-- K8S SRE -->
+    <div class="wf-card sre">
+      <div class="wf-header">
+        <div class="wf-badge blue">Chat-Driven</div>
+        <div class="wf-name">K8S SRE Agent</div>
+      </div>
+      <div style="font-size:13px; color:var(--muted); line-height:1.6; margin-bottom:14px;">
+        On-demand Kubernetes investigation. You describe the symptom; the agent runs the kubectl commands and returns structured findings.
+      </div>
+      <div class="wf-steps">
+        <div class="wf-step">
+          <div class="s-num">1</div>
+          <strong>Chat Trigger</strong>
+          User sends a message via webhook or MCP client
+        </div>
+        <div class="wf-step">
+          <div class="s-num">2</div>
+          <strong>AI Agent</strong>
+          gpt-4o with 10-message memory window plans the investigation
+        </div>
+        <div class="wf-step">
+          <div class="s-num">3</div>
+          <strong>kubectl</strong>
+          Execute Command node runs read-only commands
+        </div>
+        <div class="wf-step">
+          <div class="s-num">4</div>
+          <strong>Reply</strong>
+          Markdown table for pods; structured report for other queries
+        </div>
+      </div>
+      <div class="wf-meta">
+        <div class="wf-meta-item"><div class="key">Trigger</div><div class="val">Chat webhook</div></div>
+        <div class="wf-meta-item"><div class="key">Memory</div><div class="val">Last 10 msgs</div></div>
+        <div class="wf-meta-item"><div class="key">MCP</div><div class="val">Available</div></div>
+      </div>
+    </div>
+
+    <!-- Prometheus Alert Manager -->
+    <div class="wf-card alert">
+      <div class="wf-header">
+        <div class="wf-badge red">Autonomous</div>
+        <div class="wf-name">Prometheus Alert Manager</div>
+      </div>
+      <div style="font-size:13px; color:var(--muted); line-height:1.6; margin-bottom:14px;">
+        Fires when Alertmanager hits the webhook. Investigates the affected pod automatically and emails a full incident report — no human input required.
+      </div>
+      <div class="wf-steps">
+        <div class="wf-step">
+          <div class="s-num">1</div>
+          <strong>Webhook</strong>
+          POST /prometheus-alert from Alertmanager
+        </div>
+        <div class="wf-step">
+          <div class="s-num">2</div>
+          <strong>Parse</strong>
+          Extracts alertname, severity, namespace, pod, status
+        </div>
+        <div class="wf-step">
+          <div class="s-num">3</div>
+          <strong>AI Agent</strong>
+          gpt-4o investigates with kubectl autonomously
+        </div>
+        <div class="wf-step">
+          <div class="s-num">4</div>
+          <strong>Report</strong>
+          Strict JSON: incident, root cause, recommendations
+        </div>
+        <div class="wf-step">
+          <div class="s-num">5</div>
+          <strong>Email</strong>
+          HTML incident report via Gmail to on-call
+        </div>
+      </div>
+      <div class="wf-meta">
+        <div class="wf-meta-item"><div class="key">Trigger</div><div class="val">POST webhook</div></div>
+        <div class="wf-meta-item"><div class="key">Output</div><div class="val">HTML email</div></div>
+        <div class="wf-meta-item"><div class="key">Mode</div><div class="val">Autonomous</div></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Legend -->
+  <div class="legend">
+    <div class="legend-item">
+      <div class="legend-dot" style="border-color:var(--accent);"></div>
+      Traffic / App layer
+    </div>
+    <div class="legend-item">
+      <div class="legend-dot" style="border-color:var(--green);"></div>
+      Persistent / Storage
+    </div>
+    <div class="legend-item">
+      <div class="legend-dot" style="border-color:var(--purple);"></div>
+      k3s cluster
+    </div>
+    <div class="legend-item">
+      <div class="legend-dot" style="border-color:var(--yellow);"></div>
+      AWS SSM
+    </div>
+    <div class="legend-item">
+      <div class="legend-dot" style="border-color:var(--red);"></div>
+      Alerting workflow
+    </div>
+  </div>
+
+</body>
+</html>
