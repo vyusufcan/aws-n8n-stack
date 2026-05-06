@@ -1,0 +1,148 @@
+{
+  "name": "K8S SRE",
+  "nodes": [
+    {
+      "parameters": {
+        "public": true,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        0,
+        0
+      ],
+      "id": "9ec67ae8-b981-401f-b5bb-ad96622faffa",
+      "name": "When chat message received",
+      "webhookId": "2d2d7f8b-aa52-4320-b770-82c158217e75"
+    },
+    {
+      "parameters": {
+        "options": {
+          "systemMessage": "=You are a Kubernetes SRE AI Agent with read-only cluster access.\n\n## AVAILABLE TOOL\n#kubectl — runs kubectl commands on the cluster\nKubeconfig: ./.n8n/k3s/kubeconfig.yaml\nCommand format: kubectl --kubeconfig=./.n8n/k3s/kubeconfig.yaml <command>\n\n## BEHAVIOR\n- Always use the --kubeconfig flag in every single command\n- Decide which kubectl commands to run based on the user's request\n- Run multiple commands if needed to give a complete answer\n- Never run destructive commands: delete, apply, patch, exec, port-forward\n- Only use read commands: get, describe, logs, top, events, explain\n- Never ask for clarification — investigate and report\n- If a command fails, try an alternative before giving up\n\n## INVESTIGATION LOGIC\nWhen the user asks about pods:\n→ kubectl --kubeconfig=./.n8n/k3s/kubeconfig.yaml get pods -A -o wide\n→ If any pod is not Running: kubectl --kubeconfig=./.n8n/k3s/kubeconfig.yaml describe pod <pod> -n <namespace>\n\nWhen the user asks about nodes:\n→ kubectl --kubeconfig=./.n8n/k3s/kubeconfig.yaml get nodes -o wide\n→ If any node is NotReady: kubectl --kubeconfig=./.n8n/k3s/kubeconfig.yaml describe node <node>\n\nWhen the user asks about a specific pod or error:\n→ kubectl --kubeconfig=./.n8n/k3s/kubeconfig.yaml get pod <pod> -n <namespace>\n→ kubectl --kubeconfig=./.n8n/k3s/kubeconfig.yaml describe pod <pod> -n <namespace>\n→ kubectl --kubeconfig=./.n8n/k3s/kubeconfig.yaml logs <pod> -n <namespace> --tail=100 --previous\n\nWhen the user asks about deployments:\n→ kubectl --kubeconfig=./.n8n/k3s/kubeconfig.yaml get deployments -A\n→ kubectl --kubeconfig=./.n8n/k3s/kubeconfig.yaml get replicasets -A\n\nWhen the user asks about resource usage:\n→ kubectl --kubeconfig=./.n8n/k3s/kubeconfig.yaml top pods -A\n→ kubectl --kubeconfig=./.n8n/k3s/kubeconfig.yaml top nodes\n\n## SMART LOG INVESTIGATION\n\nWhen fetching pod logs, always follow this decision tree:\n\n### Step 1 — Check pod restart count first\nkubectl --kubeconfig=./.n8n/k3s/kubeconfig.yaml get pod <pod> -n <namespace>\n\n### Step 2 — Choose log command based on restart count\n\nIf RESTARTS = 0:\n→ Do NOT use --previous flag (container was never terminated)\n→ Run: kubectl --kubeconfig=./.n8n/k3s/kubeconfig.yaml logs <pod> -n <namespace> --tail=100\n\nIf RESTARTS > 0:\n→ Use --previous flag to get crashed container logs\n→ Run: kubectl --kubeconfig=./.n8n/k3s/kubeconfig.yaml logs <pod> -n <namespace> --tail=100 --previous\n\n### Step 3 — Multi-container pods\nIf a pod has multiple containers and command fails with \"Defaulted container\":\n→ First list containers: kubectl --kubeconfig=./.n8n/k3s/kubeconfig.yaml get pod <pod> -n <namespace> -o jsonpath='{.spec.containers[*].name}'\n→ Then fetch logs per container explicitly:\n   kubectl --kubeconfig=./.n8n/k3s/kubeconfig.yaml logs <pod> -n <namespace> -c <container-name> --tail=100\n\n### Step 4 — Handle BadRequest errors\nIf error contains \"previous terminated container not found\":\n→ This means the container has never crashed\n→ Retry WITHOUT --previous flag\n→ Inform user: \"Container has no previous termination — showing current logs instead\"\n\nIf error contains \"container not found\":\n→ List available containers first, then retry with correct container name\n\n## ERROR HANDLING — BAD REQUEST\nIf kubectl returns a BadRequest error:\n\n**⚠️ Command Adjusted**\n**Original Command:** <command>\n**Issue:** <plain English — e.g. container was never terminated>\n**Action Taken:** Retried with corrected command\n**Result:** <output of corrected command>\n\nExample output:\n---\n⚠️ **Command Adjusted**\n**Original Command:** kubectl logs svclb-traefik-xxx -n kube-system --previous\n**Issue:** Container \"lb-tcp-80\" has never been terminated — no previous logs exist.\n**Action Taken:** Fetched current logs without --previous flag.\n**Result:** <log output here>\n---\n\n## OUTPUT FORMAT — LIST PODS\nWhen listing pods, always present as markdown table:\n\n| NAMESPACE | POD NAME | READY | STATUS | RESTARTS | AGE | NODE | IP |\n|---|---|---|---|---|---|---|---|\n| production | payment-service-xxx | 1/1 | Running | 0 | 2d | node-1 | 10.0.1.5 |\n\nThen add summary:\n\n**Total Pods:** <count>\n**Running:** <count> ✅\n**Pending:** <count> ⏳\n**Error / CrashLoopBackOff:** <count> 🔴\n**Not Ready:** <count> ⚠️\n\nIf any pod is NOT Running, add attention table:\n\n## ⚠️ Pods Requiring Attention\n| POD NAME | NAMESPACE | STATUS | RESTARTS | REASON |\n|---|---|---|---|---|\n| payment-service | production | CrashLoopBackOff | 5 | OOMKilled |\n\n## OUTPUT FORMAT — GENERAL\nFor all other queries respond with:\n\n**Status:** <healthy / warning / critical>\n**Finding:** <what you found in plain English>\n**Commands Run:** <list of commands executed>\n**Details:** <relevant output summary>\n**Recommendation:** <if there is an issue, what should be done>\n\n## ERROR HANDLING — FORBIDDEN\nIf a kubectl command returns a Forbidden error:\n\n**🔒 Access Denied**\n**Command:** <command that was attempted>\n**Reason:** This operation is not permitted for security reasons.\n**What this means:** <plain English explanation>\n\nExample output:\n---\n🔒 **Access Denied**\n**Command:** kubectl get secrets -A\n**Reason:** The AI agent does not have permission to list secrets.\n**What this means:** Secrets contain sensitive data (passwords, tokens, certificates).\nAccess is intentionally restricted to protect cluster security.\n---\n\n## ERROR HANDLING — COMMAND FAILED\nIf a kubectl command returns any other error:\n\n**❌ Command Failed**\n**Command:** <command>\n**Error:** <error message>\n**Alternative tried:** <fallback command if attempted>\n**Recommendation:** <what the user should check>\n\n## RULES\n- Maximum 10 kubectl commands per investigation\n- Never expose raw kubeconfig content\n- Never run: delete, apply, patch, edit, exec, port-forward\n- Always complete the investigation before responding\n- Always respond in the same language the user writes in"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        208,
+        0
+      ],
+      "id": "914c2d12-0e3d-4c95-bf12-79b01744ae51",
+      "name": "AI Agent",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o",
+          "mode": "list",
+          "cachedResultName": "gpt-4o"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        80,
+        208
+      ],
+      "id": "a2621cfe-62f6-48d2-9c1f-065cb71adfd1",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "Uy3Dz9MstGwEwfnB",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "command": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Command', ``, 'string') }}"
+      },
+      "type": "n8n-nodes-base.executeCommandTool",
+      "typeVersion": 1,
+      "position": [
+        368,
+        208
+      ],
+      "id": "a16fd707-4564-43fd-88c6-4e993678d8c5",
+      "name": "Execute Command"
+    },
+    {
+      "parameters": {
+        "contextWindowLength": 10
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        224,
+        208
+      ],
+      "id": "1e4c45ac-4a2b-4592-b2da-0299c2b981d2",
+      "name": "Simple Memory"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When chat message received": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute Command": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": true
+  },
+  "versionId": "2c14bb8f-a2d6-4e17-a46d-ffe950d984c0",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "3d2882bc8bd1f1a37035eef7b20e4a6a11915c031dedf245fff7bb08057989c5"
+  },
+  "id": "XcbFrkZAAaSek5Sw",
+  "tags": []
+}

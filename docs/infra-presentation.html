@@ -1,0 +1,310 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>n8n AWS Infrastructure Overview</title>
+  <style>
+    :root {
+      --bg: #f4efe6;
+      --ink: #1f2933;
+      --muted: #52606d;
+      --panel: #fffdf8;
+      --accent: #c2512f;
+      --accent-2: #1c6b72;
+      --line: #dccfbd;
+      --shadow: 0 18px 40px rgba(31, 41, 51, 0.10);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Georgia, "Times New Roman", serif;
+      background:
+        radial-gradient(circle at top left, rgba(194, 81, 47, 0.12), transparent 32%),
+        radial-gradient(circle at bottom right, rgba(28, 107, 114, 0.16), transparent 30%),
+        var(--bg);
+      color: var(--ink);
+    }
+
+    .deck {
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 32px 20px;
+    }
+
+    .slide {
+      display: none;
+      width: min(980px, 100%);
+      min-height: 72vh;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 28px;
+      box-shadow: var(--shadow);
+      padding: 48px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .slide.active {
+      display: block;
+    }
+
+    .eyebrow {
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      font: 600 12px/1.2 Arial, sans-serif;
+      color: var(--accent);
+      margin-bottom: 18px;
+    }
+
+    h1, h2 {
+      margin: 0 0 18px;
+      line-height: 1;
+      font-weight: 700;
+    }
+
+    h1 {
+      font-size: clamp(40px, 6vw, 72px);
+      max-width: 10ch;
+    }
+
+    h2 {
+      font-size: clamp(28px, 4vw, 48px);
+    }
+
+    p {
+      font-size: 20px;
+      line-height: 1.5;
+      color: var(--muted);
+      max-width: 65ch;
+      margin: 0 0 16px;
+    }
+
+    code {
+      font-family: "Courier New", monospace;
+      font-size: 0.92em;
+      background: rgba(28, 107, 114, 0.08);
+      color: var(--ink);
+      padding: 2px 6px;
+      border-radius: 6px;
+    }
+
+    ul {
+      margin: 22px 0 0;
+      padding-left: 24px;
+      font-size: 22px;
+      line-height: 1.5;
+    }
+
+    li + li {
+      margin-top: 10px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 18px;
+      margin-top: 28px;
+    }
+
+    .card {
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 18px 20px;
+      background: rgba(255, 255, 255, 0.78);
+    }
+
+    .card strong {
+      display: block;
+      font: 700 14px/1.2 Arial, sans-serif;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--accent-2);
+      margin-bottom: 8px;
+    }
+
+    .flow {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 14px;
+      margin-top: 28px;
+    }
+
+    .step {
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 18px;
+      background: linear-gradient(180deg, rgba(194, 81, 47, 0.08), transparent);
+    }
+
+    .step span {
+      display: block;
+      font: 700 14px/1.2 Arial, sans-serif;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 10px;
+    }
+
+    .footer {
+      position: absolute;
+      right: 28px;
+      bottom: 20px;
+      font: 600 13px/1.2 Arial, sans-serif;
+      color: var(--muted);
+    }
+
+    .nav {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      margin-top: 18px;
+    }
+
+    button {
+      border: 0;
+      border-radius: 999px;
+      padding: 10px 16px;
+      background: var(--ink);
+      color: white;
+      font: 600 14px/1 Arial, sans-serif;
+      cursor: pointer;
+    }
+
+    button.secondary {
+      background: white;
+      color: var(--ink);
+      border: 1px solid var(--line);
+    }
+
+    @media (max-width: 760px) {
+      .slide {
+        padding: 28px;
+        min-height: auto;
+      }
+
+      p, ul {
+        font-size: 18px;
+      }
+
+      .grid, .flow {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="deck">
+    <section class="slide active">
+      <div class="eyebrow">AWS Infrastructure Overview</div>
+      <h1>n8n + k3s split stack</h1>
+      <p>This environment separates stateful storage, the k3s control server, and the n8n application layer so the app can be recreated without losing workflow data.</p>
+      <div class="grid">
+        <div class="card">
+          <strong>Public Entry</strong>
+          HTTPS traffic lands on an Application Load Balancer and is routed to <code>n8n.vyusufcan.cloud</code> or <code>chat.vyusufcan.cloud</code>.
+        </div>
+        <div class="card">
+          <strong>Private Dependency</strong>
+          The app host reads k3s connection details from SSM Parameter Store during bootstrap.
+        </div>
+      </div>
+      <div class="footer">1 / 4</div>
+    </section>
+
+    <section class="slide">
+      <div class="eyebrow">Stack Layout</div>
+      <h2>Four Terraform ownership boundaries</h2>
+      <div class="flow">
+        <div class="step">
+          <span>1. bootstrap</span>
+          Creates the S3 remote-state bucket.
+        </div>
+        <div class="step">
+          <span>2. storage</span>
+          Owns the persistent encrypted EBS volume for <code>/srv/n8n</code>.
+        </div>
+        <div class="step">
+          <span>3. k3s</span>
+          Provisions the standalone k3s EC2 server and publishes SSM parameters.
+        </div>
+        <div class="step">
+          <span>4. infra</span>
+          Builds the app EC2 host, ALB, Route53 records, IAM profile, and volume attachment.
+        </div>
+      </div>
+      <div class="footer">2 / 4</div>
+    </section>
+
+    <section class="slide">
+      <div class="eyebrow">Traffic And Trust</div>
+      <h2>How requests and control flow move</h2>
+      <ul>
+        <li>Users access the stack through Route53 aliases pointing at the ALB.</li>
+        <li>The ALB accepts public HTTPS on port <code>443</code> and forwards to the app instance.</li>
+        <li>The app EC2 host serves <code>n8n</code> on port <code>5678</code> and the chat UI on port <code>80</code>.</li>
+        <li>The k3s server can reach <code>n8n</code> directly, using the app instance security-group rule derived from the SSM private IP value.</li>
+        <li>SSH stays restricted to the operator public IP captured at apply time.</li>
+      </ul>
+      <div class="footer">3 / 4</div>
+    </section>
+
+    <section class="slide">
+      <div class="eyebrow">Operational Model</div>
+      <h2>Why this shape is useful</h2>
+      <ul>
+        <li><code>infra/</code> can be destroyed and recreated without deleting the persistent workflow volume.</li>
+        <li><code>k3s/</code> and <code>infra/</code> stay loosely coupled through SSM instead of hard-coded addresses.</li>
+        <li>The split keeps platform responsibilities clear: storage durability, cluster control, and app delivery are separate concerns.</li>
+        <li>The design is optimized for repeatable rebuilds while preserving data.</li>
+      </ul>
+      <p>Open <code>docs/infra-diagram.md</code> alongside this deck if you want the component-level diagram view.</p>
+      <div class="footer">4 / 4</div>
+    </section>
+
+    <nav class="nav" aria-label="Presentation controls">
+      <button class="secondary" id="prev" type="button">Previous</button>
+      <button id="next" type="button">Next</button>
+    </nav>
+  </main>
+
+  <script>
+    const slides = Array.from(document.querySelectorAll(".slide"));
+    const prev = document.getElementById("prev");
+    const next = document.getElementById("next");
+    let index = 0;
+
+    function render() {
+      slides.forEach((slide, i) => {
+        slide.classList.toggle("active", i === index);
+      });
+    }
+
+    prev.addEventListener("click", () => {
+      index = (index - 1 + slides.length) % slides.length;
+      render();
+    });
+
+    next.addEventListener("click", () => {
+      index = (index + 1) % slides.length;
+      render();
+    });
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "ArrowRight") {
+        index = (index + 1) % slides.length;
+        render();
+      }
+      if (event.key === "ArrowLeft") {
+        index = (index - 1 + slides.length) % slides.length;
+        render();
+      }
+    });
+  </script>
+</body>
+</html>

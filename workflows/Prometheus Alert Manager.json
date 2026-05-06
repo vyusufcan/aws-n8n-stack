@@ -1,0 +1,211 @@
+{
+  "name": "Prometheus Alert Manager",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "prometheus-alert",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -48,
+        48
+      ],
+      "id": "c2ec6c17-e0df-4847-be80-a8e4dd364242",
+      "name": "Webhook",
+      "webhookId": "15a86f5a-bfa1-4f3e-8adb-d2e6d3849735"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ JSON.stringify($('Parse Alert Payload').item.json) }}",
+        "options": {
+          "systemMessage": "You are a Kubernetes SRE AI Agent. You receive parsed Prometheus alerts and investigate the root cause by running kubectl commands autonomously.\n\n## ALERT INPUT FORMAT\nYou will receive a JSON object with these fields:\n- alertname: name of the alert\n- severity: critical | warning\n- namespace: affected namespace\n- pod: affected pod name\n- status: firing | resolved\n- summary: short description\n- description: namespace/pod\n- startsAt: alert start time\n- notification_reason: first notification | reminder\n\n## AVAILABLE TOOL\n#kubectl — runs kubectl commands on the cluster\nKubeconfig: ./.n8n/k3s/kubeconfig.yaml\nAlways use: kubectl --kubeconfig=./.n8n/k3s/kubeconfig.yaml <command>\n\n## INVESTIGATION WORKFLOW\n\n### Step 1 — Parse Alert\nExtract: alertname, severity, namespace, pod\n\n### Step 2 — Initial Assessment\nAlways run first:\nkubectl --kubeconfig=./.n8n/k3s/kubeconfig.yaml get pod {{ pod }} -n {{ namespace }}\nkubectl --kubeconfig=./.n8n/k3s/kubeconfig.yaml get events -n {{ namespace }} --sort-by='.lastTimestamp' | tail -10\n\n### Step 3 — Deep Investigation by Alert Type\n\nIf alertname = PodCrashLooping:\n→ kubectl --kubeconfig=./.n8n/k3s/kubeconfig.yaml describe pod {{ pod }} -n {{ namespace }}\n→ Check RESTARTS count first\n→ If RESTARTS > 0: kubectl --kubeconfig=./.n8n/k3s/kubeconfig.yaml logs {{ pod }} -n {{ namespace }} --tail=50 --previous\n→ If RESTARTS = 0: kubectl --kubeconfig=./.n8n/k3s/kubeconfig.yaml logs {{ pod }} -n {{ namespace }} --tail=50\n\nIf alertname = PodNotReady:\n→ kubectl --kubeconfig=./.n8n/k3s/kubeconfig.yaml describe pod {{ pod }} -n {{ namespace }}\n→ kubectl --kubeconfig=./.n8n/k3s/kubeconfig.yaml logs {{ pod }} -n {{ namespace }} --tail=50\n→ Check: Readiness probe, OOMKilled, image pull errors\n\nIf alertname = NodeNotReady:\n→ kubectl --kubeconfig=./.n8n/k3s/kubeconfig.yaml get nodes -o wide\n→ kubectl --kubeconfig=./.n8n/k3s/kubeconfig.yaml describe node {{ node }}\n→ kubectl --kubeconfig=./.n8n/k3s/kubeconfig.yaml get pods -A --field-selector=spec.nodeName={{ node }}\n\nIf alertname = HighMemoryUsage:\n→ kubectl --kubeconfig=./.n8n/k3s/kubeconfig.yaml top pod {{ pod }} -n {{ namespace }}\n→ kubectl --kubeconfig=./.n8n/k3s/kubeconfig.yaml describe pod {{ pod }} -n {{ namespace }}\n→ Check memory requests and limits\n\n## SMART LOG RULES\n- Check RESTARTS count before fetching logs\n- RESTARTS = 0 → never use --previous flag\n- RESTARTS > 0 → use --previous flag\n- Multi-container pod → list containers first:\n  kubectl --kubeconfig=./.n8n/k3s/kubeconfig.yaml get pod {{ pod }} -n {{ namespace }} -o jsonpath='{.spec.containers[*].name}'\n  Then fetch per container: --container <name>\n- If BadRequest \"previous not found\" → retry without --previous\n\n## ERROR HANDLING\n\nIf Forbidden error:\n→ Skip that command\n→ Continue investigation with alternative commands\n→ Note in report: \"Secret/restricted resource skipped due to RBAC policy\"\n\nIf BadRequest error:\n→ Adjust command and retry once\n→ Note adjustment in report\n\nIf command fails completely:\n→ Try alternative command\n→ If still fails, mark as \"Unable to retrieve\" and continue\n\n## OUTPUT FORMAT — STRUCTURED REPORT\n\nProduce this exact JSON structure and nothing else:\n\n{\n  \"incident\": {\n    \"alertname\": \"\",\n    \"severity\": \"\",\n    \"namespace\": \"\",\n    \"pod\": \"\",\n    \"status\": \"\",\n    \"started_at\": \"\"\n  },\n  \"investigation\": {\n    \"commands_executed\": [],\n    \"findings\": \"\"\n  },\n  \"root_cause\": {\n    \"summary\": \"\",\n    \"technical_detail\": \"\",\n    \"blast_radius\": \"\"\n  },\n  \"recommendation\": {\n    \"immediate_action\": \"\",\n    \"long_term_fix\": \"\"\n  },\n  \"email\": {\n    \"subject\": \"[{{ severity | upper }}] {{ alertname }} - {{ namespace }}/{{ pod }}\",\n    \"body\": \"\"\n  }\n}\n\n## EMAIL BODY FORMAT\nWrite email body in plain English. Include:\n- What happened\n- Root cause found\n- Affected resources\n- Recommended action\n- Commands that were run\n\n## STRICT RULES\n1. Maximum 10 kubectl commands per investigation\n2. NEVER run: delete, apply, patch, edit, exec, port-forward\n3. ONLY use: get, describe, logs, top, events, explain\n4. Never expose kubeconfig content\n5. Always complete investigation before generating report\n6. If notification_reason = \"reminder\" and no new findings → add note \"No change since last alert\"\n7. Output must be valid JSON only — no extra text before or after"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        432,
+        48
+      ],
+      "id": "fe4c5c1d-9342-420a-a583-58ca99821db2",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o",
+          "mode": "list",
+          "cachedResultName": "gpt-4o"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        432,
+        352
+      ],
+      "id": "db12603d-41ad-419e-b388-dfd83ca0eac9",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "Uy3Dz9MstGwEwfnB",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "command": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Command', ``, 'string') }}"
+      },
+      "type": "n8n-nodes-base.executeCommandTool",
+      "typeVersion": 1,
+      "position": [
+        816,
+        304
+      ],
+      "id": "24eae7b5-e268-41a4-a921-cef4287a4d3d",
+      "name": "Execute Command"
+    },
+    {
+      "parameters": {
+        "sendTo": "vehbiyusufcan@gmail.com",
+        "subject": "={{ $('Parse AI Agent Output').item.json.subject }}",
+        "message": "={{ $('Parse AI Agent Output').item.json.htmlBody }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1072,
+        48
+      ],
+      "id": "5525abc8-09c4-494c-8455-ee88a1249639",
+      "name": "Send a message",
+      "webhookId": "77554f1b-9031-42f9-af31-a16f9f6a5aed",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "tLTkcfOWzahbdUXR",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body;\nconst alert = body.alerts[0];\n\nreturn {\n  alertname: alert.labels.alertname,\n  severity: alert.labels.severity,\n  namespace: alert.labels.namespace,\n  pod: alert.labels.pod,\n  status: alert.status,\n  summary: alert.annotations.summary,\n  description: alert.annotations.description,\n  startsAt: alert.startsAt,\n  notification_reason: body.notification_reason\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        176,
+        48
+      ],
+      "id": "68b756a8-d450-4839-b034-dc3988db3ab1",
+      "name": "Parse Alert Payload",
+      "notesInFlow": true,
+      "notes": "Extracts alertname, severity, namespace, pod, status, summary, description, startsAt and notification_reason from the first alert in the AlertManager webhook body."
+    },
+    {
+      "parameters": {
+        "jsCode": "const rawOutput = $input.first().json.output;\n\nlet report;\ntry {\n  const clean = rawOutput\n    .replace(/```json/g, '')\n    .replace(/```/g, '')\n    .trim();\n  report = JSON.parse(clean);\n} catch(e) {\n  report = null;\n}\n\n// ─── EMAIL ────────────────────────────────────────────────────\nlet subject, htmlBody;\n\nif (report) {\n  const i = report.incident;\n  const rc = report.root_cause;\n  const rec = report.recommendation;\n  const inv = report.investigation;\n\n  subject = report.email?.subject || `[${i.severity.toUpperCase()}] ${i.alertname} - ${i.namespace}/${i.pod}`;\n\n  htmlBody = `\n<div style=\"font-family: Arial, sans-serif; max-width: 680px; margin: 0 auto; background: #f5f5f5; padding: 20px;\">\n\n  <div style=\"background: ${i.severity === 'critical' ? '#dc2626' : '#d97706'}; padding: 20px 24px; border-radius: 8px 8px 0 0;\">\n    <h1 style=\"color: white; margin: 0; font-size: 18px;\">\n      🚨 Kubernetes Alert: ${i.alertname}\n    </h1>\n    <p style=\"color: rgba(255,255,255,0.85); margin: 6px 0 0; font-size: 13px;\">\n      ${i.severity.toUpperCase()} · ${i.namespace}/${i.pod} · ${new Date(i.started_at).toUTCString()}\n    </p>\n  </div>\n\n  <div style=\"background: white; padding: 24px; border-radius: 0 0 8px 8px; border: 1px solid #e5e7eb;\">\n\n    <table style=\"width: 100%; border-collapse: collapse; margin-bottom: 20px;\">\n      <tr style=\"background: #f9fafb;\">\n        <td style=\"padding: 8px 12px; font-size: 12px; color: #6b7280; font-weight: bold; width: 140px;\">ALERT</td>\n        <td style=\"padding: 8px 12px; font-size: 13px; color: #111827;\">${i.alertname}</td>\n      </tr>\n      <tr>\n        <td style=\"padding: 8px 12px; font-size: 12px; color: #6b7280; font-weight: bold;\">SEVERITY</td>\n        <td style=\"padding: 8px 12px; font-size: 13px; color: ${i.severity === 'critical' ? '#dc2626' : '#d97706'}; font-weight: bold;\">${i.severity.toUpperCase()}</td>\n      </tr>\n      <tr style=\"background: #f9fafb;\">\n        <td style=\"padding: 8px 12px; font-size: 12px; color: #6b7280; font-weight: bold;\">NAMESPACE</td>\n        <td style=\"padding: 8px 12px; font-size: 13px; font-family: monospace; color: #111827;\">${i.namespace}</td>\n      </tr>\n      <tr>\n        <td style=\"padding: 8px 12px; font-size: 12px; color: #6b7280; font-weight: bold;\">POD</td>\n        <td style=\"padding: 8px 12px; font-size: 13px; font-family: monospace; color: #111827;\">${i.pod}</td>\n      </tr>\n      <tr style=\"background: #f9fafb;\">\n        <td style=\"padding: 8px 12px; font-size: 12px; color: #6b7280; font-weight: bold;\">STATUS</td>\n        <td style=\"padding: 8px 12px; font-size: 13px; color: #111827;\">${i.status}</td>\n      </tr>\n    </table>\n\n    <h2 style=\"font-size: 14px; color: #374151; border-left: 3px solid #dc2626; padding-left: 10px; margin: 20px 0 10px;\">Root Cause</h2>\n    <p style=\"font-size: 13px; color: #374151; margin: 0 0 6px;\"><strong>${rc.summary}</strong></p>\n    <p style=\"font-size: 13px; color: #6b7280; margin: 0 0 6px;\">${rc.technical_detail}</p>\n    <p style=\"font-size: 12px; color: #9ca3af; margin: 0;\"><em>Blast radius: ${rc.blast_radius}</em></p>\n\n    <h2 style=\"font-size: 14px; color: #374151; border-left: 3px solid #2563eb; padding-left: 10px; margin: 20px 0 10px;\">Recommendation</h2>\n    <p style=\"font-size: 13px; color: #374151; margin: 0 0 6px;\">⚡ <strong>Immediate:</strong> ${rec.immediate_action}</p>\n    <p style=\"font-size: 13px; color: #374151; margin: 0;\">🔧 <strong>Long-term:</strong> ${rec.long_term_fix}</p>\n\n    <h2 style=\"font-size: 14px; color: #374151; border-left: 3px solid #059669; padding-left: 10px; margin: 20px 0 10px;\">Commands Executed</h2>\n    <div style=\"background: #1e1e2e; border-radius: 6px; padding: 12px 16px;\">\n      ${inv.commands_executed.map(cmd =>\n        `<p style=\"font-family: monospace; font-size: 12px; color: #a5f3d4; margin: 4px 0;\">$ ${cmd}</p>`\n      ).join('')}\n    </div>\n\n    <h2 style=\"font-size: 14px; color: #374151; border-left: 3px solid #7c3aed; padding-left: 10px; margin: 20px 0 10px;\">Findings</h2>\n    <p style=\"font-size: 13px; color: #374151; margin: 0;\">${inv.findings}</p>\n\n  </div>\n\n  <p style=\"text-align: center; font-size: 11px; color: #9ca3af; margin-top: 16px;\">\n    Automated by K8s AI Agent · n8n · ${new Date().toUTCString()}\n  </p>\n\n</div>`;\n\n} else {\n  subject = \"K8s Alert - Investigation Report\";\n  htmlBody = `<pre style=\"font-family: monospace; font-size: 12px;\">${rawOutput}</pre>`;\n}\n\n// ─── RETURN ───────────────────────────────────────────────────\nreturn {\n  subject,\n  htmlBody\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        832,
+        64
+      ],
+      "id": "414cbca7-d0bb-44c0-bf4f-9239871ef4c0",
+      "name": "Parse AI Agent Output",
+      "notesInFlow": true,
+      "notes": "Parses the AI Agent's JSON investigation report from raw output. Strips markdown code blocks, extracts incident, root_cause, recommendation and investigation fields, and builds a formatted HTML email body with subject line ready for Gmail node."
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Parse Alert Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute Command": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Parse AI Agent Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Alert Payload": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse AI Agent Output": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "db3e67df-3928-48f1-a254-97c3ceb38764",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "3d2882bc8bd1f1a37035eef7b20e4a6a11915c031dedf245fff7bb08057989c5"
+  },
+  "id": "lpDDf83A5kSV8CuX",
+  "tags": []
+}
