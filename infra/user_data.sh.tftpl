@@ -17,6 +17,7 @@ AWS_REGION="$(curl -fsSL -H "X-aws-ec2-metadata-token: $TOKEN" 'http://169.254.1
 
 DEVICE=""
 DATA_MOUNT_PATH="${data_mount_path}"
+N8N_FILE_PATH="/srv/data"
 
 for _ in $(seq 1 60); do
   for candidate in "${data_device_name}" "/dev/xvdf" "/dev/nvme1n1"; do
@@ -43,6 +44,8 @@ if ! blkid "$DEVICE" >/dev/null 2>&1; then
 fi
 
 mkdir -p "$DATA_MOUNT_PATH"
+mkdir -p "$N8N_FILE_PATH"
+
 UUID="$(blkid -s UUID -o value "$DEVICE")"
 grep -q "$${UUID}" /etc/fstab || echo "UUID=$${UUID} $${DATA_MOUNT_PATH} ext4 defaults,nofail 0 2" >> /etc/fstab
 mountpoint -q "$DATA_MOUNT_PATH" || mount "$DATA_MOUNT_PATH"
@@ -127,8 +130,11 @@ services:
       - N8N_SECURE_COOKIE=true
       - N8N_ENCRYPTION_KEY=${n8n_encryption_key}
       - NODES_EXCLUDE=[]
+      - NODE_FUNCTION_ALLOW_BUILTIN=*
+      - NODE_FUNCTION_ALLOW_EXTERNAL=*
     volumes:
       - ${data_mount_path}:/home/node/.n8n
+      - ${N8N_FILE_PATH}:/home/node/.n8n-files
 EOF
 
 cd /opt/n8n
